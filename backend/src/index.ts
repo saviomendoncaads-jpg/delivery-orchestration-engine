@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import tenantsRouter, { carregarTenantsDoBanco } from './tenants';
 import authRouter, { sessions } from './auth';
 import apiRouter, { deliveries, webhooksReceived, drivers, carregarEntregasDoBanco, carregarMotoristasDoBanco, carregarVeiculosDoBanco } from './gateway';
+import whatsappRouter, { whatsappBotService, whatsappSessions } from './whatsapp';
 import { broker } from './broker';
 import { dispatcherAgent } from './dispatcher';
 import { monitorAgent } from './monitor';
@@ -24,6 +25,9 @@ app.use('/api/auth', authRouter);
 // Roteador de gestão de empresas e lojas (multi-tenant)
 console.log('[Debug] tenantsRouter:', tenantsRouter, typeof tenantsRouter);
 app.use('/api', tenantsRouter);
+
+// Roteador do assistente virtual WhatsApp
+app.use('/api/whatsapp', whatsappRouter);
 
 // Monta o Roteador de API do Gateway Ingress
 app.use('/api', apiRouter);
@@ -214,6 +218,65 @@ io.on('connection', (socket) => {
 
       await salvarMotorista(driver);
     }
+  });
+
+  // Listeners para o Simulador de WhatsApp
+  socket.on('whatsapp_send_msg', async (data: { phone: string; text: string; lojaId: string }) => {
+    const { phone, text, lojaId } = data;
+    const targetLojaId = sessao?.tipo === 'loja' && sessao.lojaId ? sessao.lojaId : lojaId;
+    const room = `loja-${targetLojaId}`;
+
+    // 1. Transmite a mensagem enviada pelo cliente (para atualizar todos os painéis da loja/admin)
+    io.to(room).to('admin').emit('whatsapp_msg_received', {
+      phone,
+      sender: 'customer',
+      text,
+      timestamp: new Date().toISOString()
+    });
+
+    // 2. Simula o indicador "digitando..."
+    io.to(room).to('admin').emit('whatsapp_typing', {
+      phone,
+      isTyping: true
+    });
+
+    try {
+      // 3. Processa a mensagem do bot
+      const reply = await whatsappBotService.processMessage(phone, text, targetLojaId);
+
+      // 4. Aguarda 1.5s antes de enviar a resposta do bot para parecer realista
+      setTimeout(() => {
+        // Desliga o indicador de digitando
+        io.to(room).to('admin').emit('whatsapp_typing', {
+          phone,
+          isTyping: false
+        });
+
+        // Envia a resposta do bot
+        io.to(room).to('admin').emit('whatsapp_msg_received', {
+          phone,
+          sender: 'bot',
+          text: reply,
+          timestamp: new Date().toISOString()
+        });
+      }, 1500);
+    } catch (error: any) {
+      console.error('[Socket WhatsApp Error]', error);
+      io.to(room).to('admin').emit('whatsapp_typing', {
+        phone,
+        isTyping: false
+      });
+    }
+  });
+
+  socket.on('whatsapp_get_history', (data: { phone: string; lojaId: string }) => {
+    const { phone, lojaId } = data;
+    const targetLojaId = sessao?.tipo === 'loja' && sessao.lojaId ? sessao.lojaId : lojaId;
+    const session = whatsappSessions.get(phone);
+    socket.emit('whatsapp_history', {
+      phone,
+      messages: session?.messages || []
+    });
   });
 
   socket.on('disconnect', async () => {

@@ -651,6 +651,15 @@ export default function App() {
 
   // Estados para o FAB e Modal de Relatório
   const [fabOpen, setFabOpen] = useState(false);
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [whatsappMessages, setWhatsappMessages] = useState<Array<{ sender: 'customer' | 'bot'; text: string; timestamp: string }>>([]);
+  const [whatsappIsTyping, setWhatsappIsTyping] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState('+55 (81) 99999-8888');
+  const whatsappPhoneRef = useRef(whatsappPhone);
+
+  useEffect(() => {
+    whatsappPhoneRef.current = whatsappPhone;
+  }, [whatsappPhone]);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportPhase, setReportPhase] = useState<'filters' | 'view'>('filters');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1361,6 +1370,18 @@ export default function App() {
 
     // Evento do broker não é mais monitorado no frontend
 
+    // ---- Listeners do Simulador de WhatsApp ----
+    socket.on('whatsapp_msg_received', (data: { phone: string; sender: 'customer' | 'bot'; text: string; timestamp: string }) => {
+      if (data.sender === 'bot') {
+        // A mensagem do bot já foi adicionada otimisticamente (customer side) — só adicionamos a resposta do bot
+        setWhatsappMessages(prev => [...prev, { sender: 'bot', text: data.text, timestamp: data.timestamp }]);
+      }
+    });
+
+    socket.on('whatsapp_typing', (data: { phone: string; isTyping: boolean }) => {
+      setWhatsappIsTyping(data.isTyping);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -1377,6 +1398,40 @@ export default function App() {
       syncOfflineQueue();
     }
   }, [offlineMode]);
+
+  // ---- Função helper para enviar mensagens ao bot WhatsApp via socket ----
+  const [whatsappInput, setWhatsappInput] = useState('');
+  const whatsappMessagesEndRef = useRef<HTMLDivElement>(null);
+
+  const sendWhatsappMessage = (text: string) => {
+    const msg = text.trim() || whatsappInput.trim();
+    if (!msg || !socketRef.current) return;
+
+    const lojaId = sessao?.lojaId || sessao?.tipo === 'admin' ? 'admin' : '';
+    const phone = whatsappPhoneRef.current;
+    const timestamp = new Date().toISOString();
+
+    // Adiciona a mensagem do usuário otimisticamente na UI
+    setWhatsappMessages(prev => [...prev, { sender: 'customer', text: msg, timestamp }]);
+    setWhatsappInput('');
+
+    // Envia para o backend via socket
+    socketRef.current.emit('whatsapp_send_msg', { phone, text: msg, lojaId });
+  };
+
+  const clearWhatsappHistory = () => {
+    setWhatsappMessages([]);
+    setWhatsappIsTyping(false);
+  };
+
+  // Auto-scroll para o final do chat quando novas mensagens chegam
+  useEffect(() => {
+    if (whatsappOpen && whatsappMessagesEndRef.current) {
+      whatsappMessagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [whatsappMessages, whatsappIsTyping, whatsappOpen]);
+
+
 
   const syncOfflineQueue = async () => {
     console.log('[Offline Sync] Iniciando outbox flush de ações acumuladas...', actionQueue);
@@ -4898,6 +4953,148 @@ export default function App() {
           </div>
         </div>
       , document.body)}
+
+      {/* ============ WhatsApp Bot Simulator ============ */}
+      {sessao?.tipo === 'loja' && (
+        <>
+          {/* FAB Button */}
+          <button
+            id="whatsapp-fab"
+            className={`whatsapp-fab${whatsappOpen ? ' whatsapp-fab--open' : ''}`}
+            onClick={() => setWhatsappOpen(prev => !prev)}
+            aria-label="Abrir simulador WhatsApp"
+            title={whatsappOpen ? 'Fechar simulador' : 'Abrir simulador WhatsApp Bot'}
+          >
+            {whatsappOpen ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.113 1.523 5.84L.057 23.171a.75.75 0 0 0 .916.916l5.332-1.466A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.846 0-3.574-.487-5.065-1.338l-.362-.21-3.755 1.033 1.032-3.754-.21-.363A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+              </svg>
+            )}
+            {!whatsappOpen && whatsappMessages.length > 0 && (
+              <span className="whatsapp-fab__badge">{whatsappMessages.filter(m => m.sender === 'bot').length}</span>
+            )}
+          </button>
+
+          {/* Chat Panel */}
+          <div className={`whatsapp-panel${whatsappOpen ? ' whatsapp-panel--open' : ''}`}>
+            {/* Header */}
+            <div className="whatsapp-header">
+              <div className="whatsapp-header__avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+              </div>
+              <div className="whatsapp-header__info">
+                <div className="whatsapp-header__name">Bot de Pedidos</div>
+                <div className="whatsapp-header__status">
+                  <span className="whatsapp-status-dot"></span>
+                  online
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+                <input
+                  type="text"
+                  value={whatsappPhone}
+                  onChange={e => setWhatsappPhone(e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(255,255,255,0.25)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.65rem',
+                    padding: '2px 6px',
+                    width: '120px',
+                    outline: 'none'
+                  }}
+                  title="Número do cliente simulado"
+                />
+                <button onClick={clearWhatsappHistory} title="Limpar conversa" style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Test Buttons */}
+            <div className="whatsapp-quickbtns">
+              <button className="whatsapp-quickbtn" onClick={() => sendWhatsappMessage('Olá')}>👋 Olá</button>
+              <button className="whatsapp-quickbtn" onClick={() => sendWhatsappMessage('João Silva')}>👤 Nome</button>
+              <button className="whatsapp-quickbtn" onClick={() => sendWhatsappMessage('1x Pizza Portuguesa, 1x Coca-cola lata')}>🍕 Itens</button>
+              <button className="whatsapp-quickbtn" onClick={() => sendWhatsappMessage('Av. Paulista, 945, Bela Vista, São Paulo')}>📍 Endereço</button>
+              <button className="whatsapp-quickbtn" onClick={() => sendWhatsappMessage('1')}>💳 Pix</button>
+              <button className="whatsapp-quickbtn whatsapp-quickbtn--confirm" onClick={() => sendWhatsappMessage('SIM')}>✅ SIM</button>
+              <button className="whatsapp-quickbtn whatsapp-quickbtn--cancel" onClick={() => sendWhatsappMessage('cancelar')}>❌ Cancelar</button>
+            </div>
+
+            {/* Messages */}
+            <div className="whatsapp-messages">
+              {whatsappMessages.length === 0 && (
+                <div className="whatsapp-empty">
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🤖</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                    Inicie uma conversa com o bot clicando em <strong>"Olá"</strong> ou digitando uma mensagem abaixo.
+                  </div>
+                </div>
+              )}
+              {whatsappMessages.map((msg, idx) => (
+                <div key={idx} className={`whatsapp-msg whatsapp-msg--${msg.sender}`}>
+                  <div className="whatsapp-bubble">
+                    {msg.text.split('\n').map((line, i) => (
+                      <span key={i}>
+                        {line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')}
+                        {i < msg.text.split('\n').length - 1 && <br />}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="whatsapp-timestamp">
+                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    {msg.sender === 'customer' && <span className="whatsapp-checkmarks"> ✓✓</span>}
+                  </div>
+                </div>
+              ))}
+              {whatsappIsTyping && (
+                <div className="whatsapp-msg whatsapp-msg--bot">
+                  <div className="whatsapp-bubble whatsapp-typing-bubble">
+                    <span className="whatsapp-dot"></span>
+                    <span className="whatsapp-dot"></span>
+                    <span className="whatsapp-dot"></span>
+                  </div>
+                </div>
+              )}
+              <div ref={whatsappMessagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="whatsapp-input-bar">
+              <input
+                id="whatsapp-message-input"
+                type="text"
+                className="whatsapp-input"
+                placeholder="Digite uma mensagem..."
+                value={whatsappInput}
+                onChange={e => setWhatsappInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendWhatsappMessage(whatsappInput); }}}
+              />
+              <button
+                id="whatsapp-send-btn"
+                className="whatsapp-send-btn"
+                onClick={() => sendWhatsappMessage(whatsappInput)}
+                disabled={!whatsappInput.trim()}
+                aria-label="Enviar mensagem"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

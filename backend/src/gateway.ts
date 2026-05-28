@@ -180,7 +180,7 @@ export const webhooksReceived: any[] = [];
 // Contador sequencial de comandas — incrementado a cada nova entrega criada
 let cmdCounter = 0;
 
-function gerarIdComanda(): string {
+export function gerarIdComanda(): string {
   cmdCounter += 1;
   return `COMANDA-${String(cmdCounter).padStart(4, '0')}`;
 }
