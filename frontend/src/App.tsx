@@ -183,6 +183,7 @@ interface Entrega {
   referencia?: string;
   despachadoEm?: string;
   dataHoraConclusao?: string;
+  sequenciaEsperada?: number;
 
   // Multi-tenant
   lojaId?: string;
@@ -2198,10 +2199,43 @@ export default function App() {
   const alertDeliveries = deliveries.filter(d => d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA');
   const selectedRecebidas = deliveries.filter(d => selectedForManifest.includes(d.id) && d.status === 'RECEBIDO');
 
+  const getStatusWeight = (status: string) => {
+    switch (status) {
+      case 'NO_LOCAL': return 4;
+      case 'EM_TRANSITO':
+      case 'ALERTA_INCIDENTE':
+      case 'SLA_ALERTA':
+        return 3;
+      case 'DESPACHADO': return 2;
+      case 'RECEBIDO': return 1;
+      default: return 0;
+    }
+  };
+
   // Encontra a entrega ativa associada ao motoboy pareado no celular simulador
-  const entregaAtivaMobile = driverMobileVinculado
-    ? deliveries.find(d => d.motorista?.id === driverMobileVinculado.id && d.status !== 'ENTREGUE' && d.status !== 'RECUSADO_INSUCESSO' && d.status !== 'PRODUTO_RETORNADO_ESTOQUE')
-    : undefined;
+  const entregaAtivaMobile = (() => {
+    if (!driverMobileVinculado) return undefined;
+    const driverDels = deliveries.filter(d => 
+      d.motorista?.id === driverMobileVinculado.id && 
+      d.status !== 'ENTREGUE' && 
+      d.status !== 'RECUSADO_INSUCESSO' && 
+      d.status !== 'PRODUTO_RETORNADO_ESTOQUE'
+    );
+    if (driverDels.length === 0) return undefined;
+
+    driverDels.sort((a, b) => {
+      const weightA = getStatusWeight(a.status);
+      const weightB = getStatusWeight(b.status);
+      if (weightA !== weightB) {
+        return weightB - weightA;
+      }
+      const seqA = a.sequenciaEsperada ?? Infinity;
+      const seqB = b.sequenciaEsperada ?? Infinity;
+      return seqA - seqB;
+    });
+
+    return driverDels[0];
+  })();
 
 
 

@@ -171,7 +171,33 @@ io.on('connection', (socket) => {
       
       // Se esse motorista estiver em uma entrega ativa ("ocupado"), também atualiza as coordenadas da entrega ativa
       const todasEntregas = Array.from(deliveries.values());
-      const entregaAtiva = todasEntregas.find(d => d.motorista?.id === driverId && (d.status === 'EM_TRANSITO' || d.status === 'NO_LOCAL' || d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA'));
+      const getStatusWeight = (status: string) => {
+        switch (status) {
+          case 'NO_LOCAL': return 4;
+          case 'EM_TRANSITO':
+          case 'ALERTA_INCIDENTE':
+          case 'SLA_ALERTA':
+            return 3;
+          case 'DESPACHADO': return 2;
+          case 'RECEBIDO': return 1;
+          default: return 0;
+        }
+      };
+      const motoristaEntregas = todasEntregas.filter(d => 
+        d.motorista?.id === driverId && 
+        (d.status === 'EM_TRANSITO' || d.status === 'NO_LOCAL' || d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA')
+      );
+      motoristaEntregas.sort((a, b) => {
+        const weightA = getStatusWeight(a.status);
+        const weightB = getStatusWeight(b.status);
+        if (weightA !== weightB) {
+          return weightB - weightA;
+        }
+        const seqA = a.sequenciaEsperada ?? Infinity;
+        const seqB = b.sequenciaEsperada ?? Infinity;
+        return seqA - seqB;
+      });
+      const entregaAtiva = motoristaEntregas[0];
       if (entregaAtiva) {
         if (!entregaAtiva.telemetria) {
           entregaAtiva.telemetria = {
