@@ -90,6 +90,7 @@ export interface Entrega {
   romaneioId?: string;
   bairro?: string;
   referencia?: string;
+  despachadoEm?: string;
 
   // Controle de exceções
   dataHoraConclusao?: string;

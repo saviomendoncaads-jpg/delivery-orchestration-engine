@@ -181,6 +181,8 @@ interface Entrega {
   romaneioId?: string;
   bairro?: string;
   referencia?: string;
+  despachadoEm?: string;
+  dataHoraConclusao?: string;
 
   // Multi-tenant
   lojaId?: string;
@@ -216,6 +218,13 @@ interface DadoPerformanceHistorico {
   tempoEntregaMin: number;
   valor: number;
   avaliacao: number;
+  bairro?: string;
+  formaPagamento?: 'maquininha' | 'pix' | 'dinheiro';
+  prioridade?: 'baixa' | 'media' | 'alta' | 'critica';
+  incidentesCount?: number;
+  incidentesTipos?: string[];
+  romaneioId?: string;
+  despachadoEm?: string;
 }
 
 // Histórico de performance baseado apenas em entregas reais — sem dados mockados estáticos
@@ -667,6 +676,7 @@ export default function App() {
     return new Date().toISOString().slice(0, 10);
   });
   const [selectedDriverId, setSelectedDriverId] = useState('Todos');
+  const [activeReportTab, setActiveReportTab] = useState<'fleet' | 'regions' | 'finance' | 'travel_time' | 'incidents'>('fleet');
 
   // Lógica de cálculo do relatório (mesclando histórico e entregas reais finalizadas)
   const mappedLivePerformance: DadoPerformanceHistorico[] = deliveries
@@ -687,7 +697,14 @@ export default function App() {
         status: isSuccess ? 'sucesso' as const : 'cancelado' as const,
         tempoEntregaMin: tempo,
         valor: d.valor || 0,
-        avaliacao: isSuccess ? 5 : 0
+        avaliacao: isSuccess ? 5 : 0,
+        bairro: d.bairro || 'Sem Bairro',
+        formaPagamento: d.formaPagamento,
+        prioridade: d.prioridade,
+        incidentesCount: d.incidentes ? d.incidentes.length : 0,
+        incidentesTipos: d.incidentes ? d.incidentes.map(i => i.tipo) : [],
+        romaneioId: d.romaneioId,
+        despachadoEm: d.despachadoEm
       };
     });
 
@@ -750,6 +767,150 @@ export default function App() {
   const maxVolume = Math.max(...motoristasPerformance.map(m => Math.max(m.concluidas, m.canceladas)), 1);
   const chartWidth = Math.max(500, 100 + motoristasPerformance.length * 100);
 
+  // 1. Regiões (Bairros)
+  const bairrosMap = new Map<string, { total: number; sucesso: number; cancelado: number; faturamento: number }>();
+  reportData.forEach(d => {
+    const b = d.bairro || 'Sem Bairro';
+    const current = bairrosMap.get(b) || { total: 0, sucesso: 0, cancelado: 0, faturamento: 0 };
+    current.total += 1;
+    if (d.status === 'sucesso') {
+      current.sucesso += 1;
+      current.faturamento += d.valor;
+    } else {
+      current.cancelado += 1;
+    }
+    bairrosMap.set(b, current);
+  });
+  const regioesPerformance = Array.from(bairrosMap.entries()).map(([bairro, metrics]) => ({
+    bairro,
+    ...metrics
+  })).sort((a, b) => b.total - a.total);
+  const maxRegionVolume = Math.max(...regioesPerformance.map(r => r.total), 1);
+
+  // 2. Financeiro & SLAs
+  const pagamentosMap = {
+    pix: 0,
+    maquininha: 0,
+    dinheiro: 0
+  };
+  reportData.forEach(d => {
+    if (d.status === 'sucesso' && d.formaPagamento) {
+      const f = d.formaPagamento.toLowerCase();
+      if (f === 'pix' || f === 'maquininha' || f === 'dinheiro') {
+        pagamentosMap[f as keyof typeof pagamentosMap] += d.valor;
+      }
+    }
+  });
+
+  const prioridadesMap = new Map<string, { totalSucesso: number; totalTempo: number }>();
+  ['baixa', 'media', 'alta', 'critica'].forEach(p => prioridadesMap.set(p, { totalSucesso: 0, totalTempo: 0 }));
+  reportData.forEach(d => {
+    if (d.status === 'sucesso' && d.prioridade) {
+      const current = prioridadesMap.get(d.prioridade) || { totalSucesso: 0, totalTempo: 0 };
+      current.totalSucesso += 1;
+      current.totalTempo += d.tempoEntregaMin;
+      prioridadesMap.set(d.prioridade, current);
+    }
+  });
+  const prioridadesSla = Array.from(prioridadesMap.entries()).map(([prioridade, metrics]) => ({
+    prioridade,
+    slaMedio: metrics.totalSucesso > 0 ? Math.round(metrics.totalTempo / metrics.totalSucesso) : 0,
+    totalSucesso: metrics.totalSucesso
+  }));
+
+  // 3. Tempo de Trajeto por Motoboy (Romaneios)
+  const romaneiosMap = new Map<string, typeof reportData>();
+  reportData.forEach(d => {
+    if (d.romaneioId) {
+      const list = romaneiosMap.get(d.romaneioId) || [];
+      list.push(d);
+      romaneiosMap.set(d.romaneioId, list);
+    }
+  });
+
+  const romaneiosAnalise = Array.from(romaneiosMap.entries()).map(([romId, dels]) => {
+    const firstDel = dels[0];
+    const driverId = firstDel.motoristaId;
+    const driverName = firstDel.motoristaName;
+    const veiculo = firstDel.veiculo;
+    const totalValue = dels.reduce((acc, curr) => acc + (curr.status === 'sucesso' ? curr.valor : 0), 0);
+    const totalDels = dels.length;
+    const concluidas = dels.filter(d => d.status === 'sucesso').length;
+    
+    // Encontra início e fim do trajeto
+    const liveDeliveriesOfRom = deliveries.filter(ld => ld.romaneioId === romId);
+    let startMs = 0;
+    let endMs = 0;
+    
+    if (liveDeliveriesOfRom.length > 0) {
+      const startTimes = liveDeliveriesOfRom.map(ld => ld.despachadoEm ? new Date(ld.despachadoEm).getTime() : new Date(ld.criadoEm).getTime());
+      const endTimes = liveDeliveriesOfRom.map(ld => ld.dataHoraConclusao ? new Date(ld.dataHoraConclusao).getTime() : new Date(ld.atualizadoEm).getTime());
+      startMs = Math.min(...startTimes);
+      endMs = Math.max(...endTimes);
+    } else {
+      const dates = dels.map(d => new Date(d.data).getTime());
+      startMs = Math.min(...dates);
+      endMs = Math.max(...dates) + (15 * 60000); // 15 mins default
+    }
+    
+    const tempoTrajetoMin = startMs > 0 && endMs >= startMs ? Math.max(1, Math.round((endMs - startMs) / 60000)) : 15;
+    const allFinal = dels.every(d => d.status === 'sucesso' || d.status === 'cancelado');
+    const romStatus = allFinal ? 'Concluído' : 'Em Trajeto';
+
+    return {
+      romId,
+      driverId,
+      driverName,
+      veiculo,
+      totalValue,
+      totalDels,
+      concluidas,
+      tempoTrajetoMin,
+      romStatus,
+      horaInicio: startMs > 0 ? new Date(startMs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--',
+      horaFim: endMs > 0 && allFinal ? new Date(endMs).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--'
+    };
+  });
+
+  const motoboyTrajetoMap = new Map<string, { totalRomaneios: number; totalTempo: number }>();
+  romaneiosAnalise.forEach(r => {
+    const current = motoboyTrajetoMap.get(r.driverId) || { totalRomaneios: 0, totalTempo: 0 };
+    current.totalRomaneios += 1;
+    current.totalTempo += r.tempoTrajetoMin;
+    motoboyTrajetoMap.set(r.driverId, current);
+  });
+
+  const motoboysTrajeto = Array.from(motoboyTrajetoMap.entries()).map(([driverId, metrics]) => {
+    const name = romaneiosAnalise.find(r => r.driverId === driverId)?.driverName || '';
+    const veiculo = romaneiosAnalise.find(r => r.driverId === driverId)?.veiculo || '';
+    return {
+      driverId,
+      name,
+      veiculo,
+      totalRomaneios: metrics.totalRomaneios,
+      tempoMedioTrajeto: Math.round(metrics.totalTempo / metrics.totalRomaneios)
+    };
+  });
+
+  // 4. Incidentes
+  const incidentesTiposCount = {
+    traffic_jam: 0,
+    flat_tire: 0,
+    temperature_spike: 0,
+    route_deviation: 0,
+    webhook_timeout: 0
+  };
+  reportData.forEach(d => {
+    if (d.incidentesTipos) {
+      d.incidentesTipos.forEach(t => {
+        if (t in incidentesTiposCount) {
+          incidentesTiposCount[t as keyof typeof incidentesTiposCount] += 1;
+        }
+      });
+    }
+  });
+  const totalIncidentes = Object.values(incidentesTiposCount).reduce((a, b) => a + b, 0);
+
   const handleTriggerGenerate = (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
@@ -798,15 +959,52 @@ export default function App() {
       csvContent += `"${m.name}";"${veiculoNome}";${m.concluidas};${m.canceladas};"${m.faturamento.toFixed(2).replace('.', ',')}";"${m.avaliacaoMedia.replace('.', ',')}"\r\n`;
     });
 
-    csvContent += `\r\n`;
+    if (sessao?.tipo === 'loja') {
+      csvContent += `\r\n`;
+      csvContent += `ENTREGAS POR REGIÃO / BAIRRO\r\n`;
+      csvContent += `Bairro;Total Comandas;Entregas Concluídas;Canceladas;Faturamento (R$)\r\n`;
+      regioesPerformance.forEach(r => {
+        csvContent += `"${r.bairro}";${r.total};${r.sucesso};${r.cancelado};"${r.faturamento.toFixed(2).replace('.', ',')}"\r\n`;
+      });
 
+      csvContent += `\r\n`;
+      csvContent += `FATURAMENTO POR FORMA DE PAGAMENTO\r\n`;
+      csvContent += `Forma de Pagamento;Faturamento (R$)\r\n`;
+      csvContent += `Pix;"${pagamentosMap.pix.toFixed(2).replace('.', ',')}"\r\n`;
+      csvContent += `Cartão (Maquininha);"${pagamentosMap.maquininha.toFixed(2).replace('.', ',')}"\r\n`;
+      csvContent += `Dinheiro;"${pagamentosMap.dinheiro.toFixed(2).replace('.', ',')}"\r\n`;
+
+      csvContent += `\r\n`;
+      csvContent += `TEMPO MÉDIO DE SLA POR PRIORIDADE\r\n`;
+      csvContent += `Prioridade;Tempo Médio (min);Quantidade Entregas\r\n`;
+      prioridadesSla.forEach(p => {
+        csvContent += `"${p.prioridade}";${p.slaMedio};${p.totalSucesso}\r\n`;
+      });
+
+      csvContent += `\r\n`;
+      csvContent += `HISTÓRICO DE ROMANEIOS E TEMPO DE TRAJETO\r\n`;
+      csvContent += `Código do Romaneio;Entregador;Qtd Comandas;Concluídas;Horário Início;Horário Fim;Tempo Trajeto (min);Faturamento (R$);Status\r\n`;
+      romaneiosAnalise.forEach(r => {
+        csvContent += `"${r.romId}";"${r.driverName}";${r.totalDels};${r.concluidas};"${r.horaInicio}";"${r.horaFim}";${r.tempoTrajetoMin};"${r.totalValue.toFixed(2).replace('.', ',')}";"${r.romStatus}"\r\n`;
+      });
+
+      csvContent += `\r\n`;
+      csvContent += `EXCEÇÕES E INCIDENTES DE ROTA\r\n`;
+      csvContent += `Tipo de Incidente;Ocorrências\r\n`;
+      csvContent += `Trânsito Intenso;${incidentesTiposCount.traffic_jam}\r\n`;
+      csvContent += `Problemas no Veículo;${incidentesTiposCount.flat_tire}\r\n`;
+      csvContent += `Alerta de Temperatura;${incidentesTiposCount.temperature_spike}\r\n`;
+      csvContent += `Desvios de Rota;${incidentesTiposCount.route_deviation}\r\n`;
+    }
+
+    csvContent += `\r\n`;
     csvContent += `DETALHAMENTO DAS ENTREGAS NO PERÍODO\r\n`;
-    csvContent += `ID da Comanda;Data;Entregador;Veículo;Status;Tempo de Entrega (min);Valor (R$);Avaliação\r\n`;
+    csvContent += `ID da Comanda;Data;Entregador;Veículo;Status;Tempo de Entrega (min);Valor (R$);Avaliação;Bairro;Forma Pagamento\r\n`;
 
     reportData.forEach(d => {
       const veiculoNome = d.veiculo === 'refrigerated_truck' ? 'Caminhão Refrigerado' : d.veiculo === 'motorcycle' ? 'Motocicleta' : d.veiculo === 'van' ? 'Van' : 'Drone';
       const statusFormatado = d.status === 'sucesso' ? 'Concluída' : 'Cancelada';
-      csvContent += `"${d.id}";"${formatarDataBR(d.data)}";"${d.motoristaName}";"${veiculoNome}";"${statusFormatado}";${d.tempoEntregaMin};"${d.valor.toFixed(2).replace('.', ',')}";${d.avaliacao}\r\n`;
+      csvContent += `"${d.id}";"${formatarDataBR(d.data)}";"${d.motoristaName}";"${veiculoNome}";"${statusFormatado}";${d.tempoEntregaMin};"${d.valor.toFixed(2).replace('.', ',')}";${d.avaliacao};"${d.bairro || ''}";"${d.formaPagamento || ''}"\r\n`;
     });
 
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2733,7 +2931,8 @@ export default function App() {
                       method: 'POST',
                       body: JSON.stringify({
                         deliveryIds: activeManifest.deliveryIds,
-                        driverId: activeManifest.driverId
+                        driverId: activeManifest.driverId,
+                        romaneioId: activeManifest.id
                       })
                     });
                     const data = await response.json();
@@ -4002,7 +4201,9 @@ export default function App() {
                 <div>
                   <div className="report-sub-header">
                     <div>
-                      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Análise de Desempenho da Frota</h3>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {sessao?.tipo === 'loja' ? 'Painel de Indicadores & Analytics' : 'Análise de Desempenho da Frota'}
+                      </h3>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                         Período: {formatarDataBR(startDate)} até {formatarDataBR(endDate)}
                         {selectedDriverId !== 'Todos' && ` | Filtro: ${drivers.find(d => d.id === selectedDriverId)?.name}`}
@@ -4010,6 +4211,7 @@ export default function App() {
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button 
+                        type="button"
                         className="btn btn-secondary btn-small"
                         style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem' }}
                         onClick={() => setReportPhase('filters')}
@@ -4017,6 +4219,7 @@ export default function App() {
                         Voltar aos Filtros
                       </button>
                       <button 
+                        type="button"
                         className="btn btn-success btn-small"
                         style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem' }}
                         onClick={handleExportCSV}
@@ -4042,129 +4245,392 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Gráfico Principal */}
-                  <div className="chart-svg-container">
-                    <h4 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', fontWeight: 600 }}>Entregas por Entregador no Período</h4>
-                    <svg width="100%" height="200" viewBox={`0 0 ${chartWidth} 200`} style={{ overflow: 'visible' }}>
-                      <defs>
-                        <linearGradient id="gradSuccess" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--color-emerald)" stopOpacity="1" />
-                          <stop offset="100%" stopColor="rgba(16, 185, 129, 0.2)" stopOpacity="0.2" />
-                        </linearGradient>
-                        <linearGradient id="gradFail" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--color-rose)" stopOpacity="1" />
-                          <stop offset="100%" stopColor="rgba(244, 63, 94, 0.2)" stopOpacity="0.2" />
-                        </linearGradient>
-                      </defs>
+                  {/* Abas analíticas (Exclusivo da visão de loja) */}
+                  {sessao?.tipo === 'loja' && (
+                    <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-thin)', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
+                      <button 
+                        type="button"
+                        className="btn btn-small" 
+                        style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.3rem 0.6rem', 
+                          background: activeReportTab === 'fleet' ? '#0891b2' : 'var(--bg-card)', 
+                          color: activeReportTab === 'fleet' ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (activeReportTab === 'fleet' ? '#0891b2' : 'var(--border-thin)'),
+                          borderRadius: '4px'
+                        }}
+                        onClick={() => setActiveReportTab('fleet')}
+                      >
+                        Frota e Desempenho
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-small" 
+                        style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.3rem 0.6rem', 
+                          background: activeReportTab === 'regions' ? '#0891b2' : 'var(--bg-card)', 
+                          color: activeReportTab === 'regions' ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (activeReportTab === 'regions' ? '#0891b2' : 'var(--border-thin)'),
+                          borderRadius: '4px'
+                        }}
+                        onClick={() => setActiveReportTab('regions')}
+                      >
+                        Vendas por Região
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-small" 
+                        style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.3rem 0.6rem', 
+                          background: activeReportTab === 'finance' ? '#0891b2' : 'var(--bg-card)', 
+                          color: activeReportTab === 'finance' ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (activeReportTab === 'finance' ? '#0891b2' : 'var(--border-thin)'),
+                          borderRadius: '4px'
+                        }}
+                        onClick={() => setActiveReportTab('finance')}
+                      >
+                        Financeiro e SLA
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-small" 
+                        style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.3rem 0.6rem', 
+                          background: activeReportTab === 'travel_time' ? '#0891b2' : 'var(--bg-card)', 
+                          color: activeReportTab === 'travel_time' ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (activeReportTab === 'travel_time' ? '#0891b2' : 'var(--border-thin)'),
+                          borderRadius: '4px'
+                        }}
+                        onClick={() => setActiveReportTab('travel_time')}
+                      >
+                        Tempo de Trajeto
+                      </button>
+                      <button 
+                        type="button"
+                        className="btn btn-small" 
+                        style={{ 
+                          fontSize: '0.75rem', 
+                          padding: '0.3rem 0.6rem', 
+                          background: activeReportTab === 'incidents' ? '#0891b2' : 'var(--bg-card)', 
+                          color: activeReportTab === 'incidents' ? '#fff' : 'var(--text-secondary)',
+                          border: '1px solid ' + (activeReportTab === 'incidents' ? '#0891b2' : 'var(--border-thin)'),
+                          borderRadius: '4px'
+                        }}
+                        onClick={() => setActiveReportTab('incidents')}
+                      >
+                        Incidentes e Alertas
+                      </button>
+                    </div>
+                  )}
 
-                      {/* Grade de fundo */}
-                      <line x1="50" y1="30" x2={chartWidth - 20} y2="30" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
-                      <line x1="50" y1="75" x2={chartWidth - 20} y2="75" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
-                      <line x1="50" y1="120" x2={chartWidth - 20} y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
-                      <line x1="50" y1="160" x2={chartWidth - 20} y2="160" stroke="var(--border-thin)" strokeWidth="1" />
+                  {/* Renderização condicional de Abas */}
+                  {(!sessao || sessao.tipo !== 'loja' || activeReportTab === 'fleet') && (
+                    <>
+                      {/* Gráfico Principal */}
+                      <div className="chart-svg-container" style={{ marginBottom: '1.25rem' }}>
+                        <h4 style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', fontWeight: 600 }}>Entregas por Entregador no Período</h4>
+                        <svg width="100%" height="200" viewBox={`0 0 ${chartWidth} 200`} style={{ overflow: 'visible' }}>
+                          <defs>
+                            <linearGradient id="gradSuccess" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--color-emerald)" stopOpacity="1" />
+                              <stop offset="100%" stopColor="rgba(16, 185, 129, 0.2)" stopOpacity="0.2" />
+                            </linearGradient>
+                            <linearGradient id="gradFail" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--color-rose)" stopOpacity="1" />
+                              <stop offset="100%" stopColor="rgba(244, 63, 94, 0.2)" stopOpacity="0.2" />
+                            </linearGradient>
+                          </defs>
 
-                      {/* Eixo Y */}
-                      <text x="38" y="34" fill="var(--text-secondary)" fontSize="9" textAnchor="end">{maxVolume}</text>
-                      <text x="38" y="98" fill="var(--text-secondary)" fontSize="9" textAnchor="end">{Math.round(maxVolume / 2)}</text>
-                      <text x="38" y="163" fill="var(--text-secondary)" fontSize="9" textAnchor="end">0</text>
+                          {/* Grade de fundo */}
+                          <line x1="50" y1="30" x2={chartWidth - 20} y2="30" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="75" x2={chartWidth - 20} y2="75" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="120" x2={chartWidth - 20} y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="160" x2={chartWidth - 20} y2="160" stroke="var(--border-thin)" strokeWidth="1" />
 
-                      {/* Barras por motorista */}
-                      {motoristasPerformance.map((drv, idx) => {
-                        const xOffset = 80 + idx * 100;
-                        const scale = 120 / maxVolume;
-                        const heightSuccess = drv.concluidas * scale;
-                        const heightCancel = drv.canceladas * scale;
+                          {/* Eixo Y */}
+                          <text x="38" y="34" fill="var(--text-secondary)" fontSize="9" textAnchor="end">{maxVolume}</text>
+                          <text x="38" y="98" fill="var(--text-secondary)" fontSize="9" textAnchor="end">{Math.round(maxVolume / 2)}</text>
+                          <text x="38" y="163" fill="var(--text-secondary)" fontSize="9" textAnchor="end">0</text>
 
-                        return (
-                          <g key={drv.id}>
-                            {/* Barra Sucesso */}
-                            <rect 
-                              x={xOffset} 
-                              y={160 - heightSuccess} 
-                              width="24" 
-                              height={heightSuccess} 
-                              fill="url(#gradSuccess)" 
-                              rx="3"
-                              stroke="var(--color-emerald)"
-                              strokeWidth="0.5"
-                            />
-                            {drv.concluidas > 0 && (
-                              <text x={xOffset + 12} y={155 - heightSuccess} fill="var(--color-emerald)" fontSize="9" textAnchor="middle" fontWeight="bold">
-                                {drv.concluidas}
-                              </text>
-                            )}
+                          {/* Barras por motorista */}
+                          {motoristasPerformance.map((drv, idx) => {
+                            const xOffset = 80 + idx * 100;
+                            const scale = 120 / maxVolume;
+                            const heightSuccess = drv.concluidas * scale;
+                            const heightCancel = drv.canceladas * scale;
 
-                            {/* Barra Cancelamento */}
-                            <rect 
-                              x={xOffset + 28} 
-                              y={160 - heightCancel} 
-                              width="24" 
-                              height={heightCancel} 
-                              fill="url(#gradFail)" 
-                              rx="3"
-                              stroke="var(--color-rose)"
-                              strokeWidth="0.5"
-                            />
-                            {drv.canceladas > 0 && (
-                              <text x={xOffset + 40} y={155 - heightCancel} fill="var(--color-rose)" fontSize="9" textAnchor="middle" fontWeight="bold">
-                                {drv.canceladas}
-                              </text>
-                            )}
+                            return (
+                              <g key={drv.id}>
+                                {/* Barra Sucesso */}
+                                <rect 
+                                  x={xOffset} 
+                                  y={160 - heightSuccess} 
+                                  width="24" 
+                                  height={heightSuccess} 
+                                  fill="url(#gradSuccess)" 
+                                  rx="3"
+                                  stroke="var(--color-emerald)"
+                                  strokeWidth="0.5"
+                                />
+                                {drv.concluidas > 0 && (
+                                  <text x={xOffset + 12} y={155 - heightSuccess} fill="var(--color-emerald)" fontSize="9" textAnchor="middle" fontWeight="bold">
+                                    {drv.concluidas}
+                                  </text>
+                                )}
 
-                            {/* Rótulo Eixo X */}
-                            <text x={xOffset + 26} y="178" fill="var(--text-primary)" fontSize="9" textAnchor="middle">
-                              {drv.name.split(' ')[0]}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </svg>
-                    
-                    <div className="chart-legends">
-                      <div className="legend-item">
-                        <span className="legend-color" style={{ backgroundColor: 'var(--color-emerald)', border: '1px solid var(--color-emerald)' }}></span>
-                        <span style={{ color: 'var(--text-secondary)' }}>Concluídas com Sucesso</span>
+                                {/* Barra Cancelamento */}
+                                <rect 
+                                  x={xOffset + 28} 
+                                  y={160 - heightCancel} 
+                                  width="24" 
+                                  height={heightCancel} 
+                                  fill="url(#gradFail)" 
+                                  rx="3"
+                                  stroke="var(--color-rose)"
+                                  strokeWidth="0.5"
+                                />
+                                {drv.canceladas > 0 && (
+                                  <text x={xOffset + 40} y={155 - heightCancel} fill="var(--color-rose)" fontSize="9" textAnchor="middle" fontWeight="bold">
+                                    {drv.canceladas}
+                                  </text>
+                                )}
+
+                                {/* Rótulo Eixo X */}
+                                <text x={xOffset + 26} y="178" fill="var(--text-primary)" fontSize="9" textAnchor="middle">
+                                  {drv.name.split(' ')[0]}
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                        
+                        <div className="chart-legends">
+                          <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: 'var(--color-emerald)', border: '1px solid var(--color-emerald)' }}></span>
+                            <span style={{ color: 'var(--text-secondary)' }}>Concluídas com Sucesso</span>
+                          </div>
+                          <div className="legend-item">
+                            <span className="legend-color" style={{ backgroundColor: 'var(--color-rose)', border: '1px solid var(--color-rose)' }}></span>
+                            <span style={{ color: 'var(--text-secondary)' }}>Canceladas / Devolvidas</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="legend-item">
-                        <span className="legend-color" style={{ backgroundColor: 'var(--color-rose)', border: '1px solid var(--color-rose)' }}></span>
-                        <span style={{ color: 'var(--text-secondary)' }}>Canceladas / Devolvidas</span>
+
+                      {/* Tabela de Desempenho */}
+                      <div style={{ overflowX: 'auto', border: '1px solid var(--border-thin)', borderRadius: '8px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-thin)', color: 'var(--text-secondary)' }}>
+                              <th style={{ padding: '0.6rem 0.8rem' }}>Entregador</th>
+                              <th style={{ padding: '0.6rem 0.8rem' }}>Veículo</th>
+                              <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Concluídas</th>
+                              <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Canceladas</th>
+                              <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Faturamento</th>
+                              <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Nota Média</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {motoristasPerformance
+                              .filter(m => selectedDriverId === 'Todos' || m.id === selectedDriverId)
+                              .map(m => (
+                                <tr key={m.id} style={{ borderBottom: '1px solid var(--border-thin)' }}>
+                                  <td style={{ padding: '0.6rem 0.8rem', fontWeight: 500, color: 'var(--text-primary)' }}>{m.name}</td>
+                                  <td style={{ padding: '0.6rem 0.8rem', textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{m.veiculo === 'refrigerated_truck' ? 'Caminhão Refrigerado' : m.veiculo === 'motorcycle' ? 'Motocicleta' : m.veiculo}</td>
+                                  <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-emerald)' }}>{m.concluidas}</td>
+                                  <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-rose)' }}>{m.canceladas}</td>
+                                  <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--color-cyan)' }}>R$ {m.faturamento.toFixed(2)}</td>
+                                  <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
+                                    <span className="card-badge completed" style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.08)', color: 'var(--color-emerald)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                                      ★ {m.avaliacaoMedia}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {sessao?.tipo === 'loja' && activeReportTab === 'regions' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>Entregas por Região / Bairro</h4>
+                      {regioesPerformance.length === 0 ? (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem', border: '1px dashed var(--border-thin)', borderRadius: '8px' }}>
+                          Nenhuma entrega com informação de bairro no período.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '1rem' }}>
+                          {regioesPerformance.map(r => {
+                            const scale = (r.total / maxRegionVolume) * 100;
+                            return (
+                              <div key={r.bairro} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>📍 {r.bairro}</span>
+                                  <span style={{ color: 'var(--text-secondary)' }}>
+                                    <strong>{r.total}</strong> comandas ({r.sucesso} OK / {r.cancelado} Falhas) | <strong style={{ color: 'var(--color-cyan)' }}>R$ {r.faturamento.toFixed(2)}</strong>
+                                  </span>
+                                </div>
+                                <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.04)', borderRadius: '4px', overflow: 'hidden' }}>
+                                  <div style={{ width: `${scale}%`, height: '100%', background: 'linear-gradient(90deg, var(--color-cyan), var(--color-blue))', borderRadius: '4px' }}></div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {sessao?.tipo === 'loja' && activeReportTab === 'finance' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>Faturamento por Forma de Pagamento</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Faturamento via Pix</span>
+                            <strong style={{ fontSize: '1.1rem', color: 'var(--color-emerald)', fontFamily: 'var(--font-mono)' }}>R$ {pagamentosMap.pix.toFixed(2)}</strong>
+                          </div>
+                          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Faturamento via Cartão (Maquininha)</span>
+                            <strong style={{ fontSize: '1.1rem', color: 'var(--color-cyan)', fontFamily: 'var(--font-mono)' }}>R$ {pagamentosMap.maquininha.toFixed(2)}</strong>
+                          </div>
+                          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Faturamento via Dinheiro</span>
+                            <strong style={{ fontSize: '1.1rem', color: 'var(--color-amber)', fontFamily: 'var(--font-mono)' }}>R$ {pagamentosMap.dinheiro.toFixed(2)}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>Tempo Médio de SLA por Prioridade de Pedido</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+                          {prioridadesSla.map(p => {
+                            const badgeColor = p.prioridade === 'critica' ? 'var(--color-rose)' : p.prioridade === 'alta' ? 'var(--color-amber)' : p.prioridade === 'media' ? 'var(--color-blue)' : 'var(--text-secondary)';
+                            return (
+                              <div key={p.prioridade} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <span style={{ fontSize: '0.72rem', color: badgeColor, textTransform: 'capitalize', fontWeight: 'bold' }}>• {p.prioridade}</span>
+                                <strong style={{ fontSize: '1.1rem', color: '#fff', fontFamily: 'var(--font-mono)' }}>{p.slaMedio} min</strong>
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Com base em {p.totalSucesso} entregas</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Tabela de Desempenho */}
-                  <div style={{ overflowX: 'auto', border: '1px solid var(--border-thin)', borderRadius: '8px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-thin)', color: 'var(--text-secondary)' }}>
-                          <th style={{ padding: '0.6rem 0.8rem' }}>Entregador</th>
-                          <th style={{ padding: '0.6rem 0.8rem' }}>Veículo</th>
-                          <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Concluídas</th>
-                          <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Canceladas</th>
-                          <th style={{ padding: '0.6rem 0.8rem', textAlign: 'right' }}>Faturamento</th>
-                          <th style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>Nota Média</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {motoristasPerformance
-                          .filter(m => selectedDriverId === 'Todos' || m.id === selectedDriverId)
-                          .map(m => (
-                            <tr key={m.id} style={{ borderBottom: '1px solid var(--border-thin)' }}>
-                              <td style={{ padding: '0.6rem 0.8rem', fontWeight: 500, color: 'var(--text-primary)' }}>{m.name}</td>
-                              <td style={{ padding: '0.6rem 0.8rem', textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{m.veiculo === 'refrigerated_truck' ? 'Caminhão Refrigerado' : m.veiculo === 'motorcycle' ? 'Motocicleta' : m.veiculo}</td>
-                              <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-emerald)' }}>{m.concluidas}</td>
-                              <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--color-rose)' }}>{m.canceladas}</td>
-                              <td style={{ padding: '0.6rem 0.8rem', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--color-cyan)' }}>R$ {m.faturamento.toFixed(2)}</td>
-                              <td style={{ padding: '0.6rem 0.8rem', textAlign: 'center' }}>
-                                <span className="card-badge completed" style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.08)', color: 'var(--color-emerald)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-                                  ★ {m.avaliacaoMedia}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {sessao?.tipo === 'loja' && activeReportTab === 'travel_time' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>Tempo Médio de Trajeto por Motoboy</h4>
+                        {motoboysTrajeto.length === 0 ? (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1.5rem', border: '1px dashed var(--border-thin)', borderRadius: '8px' }}>
+                            Sem dados de romaneios concluídos no período.
+                          </div>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                            {motoboysTrajeto.map(m => (
+                              <div key={m.driverId} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{m.name}</span>
+                                <strong style={{ fontSize: '1.15rem', color: 'var(--color-cyan)', fontFamily: 'var(--font-mono)' }}>{m.tempoMedioTrajeto} min</strong>
+                                <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Média sobre {m.totalRomaneios} romaneios</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600, marginBottom: '0.5rem' }}>Histórico de Romaneios & Trajetos</h4>
+                        {romaneiosAnalise.length === 0 ? (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '1.5rem', border: '1px dashed var(--border-thin)', borderRadius: '8px' }}>
+                            Nenhum romaneio gerado no período.
+                          </div>
+                        ) : (
+                          <div style={{ overflowX: 'auto', border: '1px solid var(--border-thin)', borderRadius: '8px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
+                              <thead>
+                                <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-thin)', color: 'var(--text-secondary)' }}>
+                                  <th style={{ padding: '0.5rem 0.6rem' }}>Cód. Romaneio</th>
+                                  <th style={{ padding: '0.5rem 0.6rem' }}>Entregador</th>
+                                  <th style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>Qtd Comandas</th>
+                                  <th style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>Horário</th>
+                                  <th style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>Tempo Trajeto</th>
+                                  <th style={{ padding: '0.5rem 0.6rem', textAlign: 'right' }}>Faturamento</th>
+                                  <th style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {romaneiosAnalise.map(r => (
+                                  <tr key={r.romId} style={{ borderBottom: '1px solid var(--border-thin)' }}>
+                                    <td style={{ padding: '0.5rem 0.6rem', fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{r.romId}</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', color: 'var(--text-secondary)' }}>{r.driverName}</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>{r.totalDels} ({r.concluidas} OK)</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', textAlign: 'center', color: 'var(--text-muted)' }}>{r.horaInicio} até {r.horaFim}</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', textAlign: 'center', fontWeight: '500', color: 'var(--color-cyan)' }}>{r.tempoTrajetoMin} min</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', textAlign: 'right', fontFamily: 'var(--font-mono)' }}>R$ {r.totalValue.toFixed(2)}</td>
+                                    <td style={{ padding: '0.5rem 0.6rem', textAlign: 'center' }}>
+                                      <span className={`card-badge ${r.romStatus === 'Concluído' ? 'completed' : 'in_transit'}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.3rem' }}>
+                                        {r.romStatus}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {sessao?.tipo === 'loja' && activeReportTab === 'incidents' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <h4 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>Detalhamento de Exceções & Incidentes de Rota</h4>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '1.5rem' }}>🚗</span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Trânsito Intenso</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.traffic_jam} ocorrências</strong>
+                          </div>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '1.5rem' }}>🔧</span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Problemas no Veículo</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.flat_tire} ocorrências</strong>
+                          </div>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '1.5rem' }}>❄️</span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Alerta de Temperatura</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.temperature_spike} ocorrências</strong>
+                          </div>
+                        </div>
+                        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '1.5rem' }}>↪️</span>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Desvios de Rota</span>
+                            <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.route_deviation} ocorrências</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '8px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                        <span style={{ color: 'var(--color-emerald)', fontSize: '1.1rem' }}>🟢</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {totalIncidentes === 0 ? 'Excelente! Zero incidentes de rota registrados no período selecionado.' : `Registrados ${totalIncidentes} incidentes/exceções no período.`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

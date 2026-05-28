@@ -257,7 +257,7 @@ router.post('/deliveries/dispatch-batch', async (req: Request, res: Response) =>
     res.status(401).json({ error: 'Não autenticado' });
     return;
   }
-  const { deliveryIds, driverId } = req.body;
+  const { deliveryIds, driverId, romaneioId } = req.body;
   if (!Array.isArray(deliveryIds) || !driverId) {
     res.status(400).json({ error: 'Lista de IDs de entregas e ID do motorista são obrigatórios.' });
     return;
@@ -265,7 +265,7 @@ router.post('/deliveries/dispatch-batch', async (req: Request, res: Response) =>
 
   try {
     const { dispatcherAgent } = require('./dispatcher');
-    await dispatcherAgent.manualDispatch(deliveryIds, driverId);
+    await dispatcherAgent.manualDispatch(deliveryIds, driverId, romaneioId);
     res.json({ success: true, message: `${deliveryIds.length} comanda(s) liberada(s) para entrega com sucesso.` });
   } catch (err: any) {
     console.error('[Gateway] Erro no despacho manual:', err);

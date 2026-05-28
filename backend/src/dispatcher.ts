@@ -282,7 +282,7 @@ export class DispatcherAgent {
     };
   }
 
-  public async manualDispatch(deliveryIds: string[], driverId: string) {
+  public async manualDispatch(deliveryIds: string[], driverId: string, romaneioId?: string) {
     const batch: Entrega[] = [];
     for (const id of deliveryIds) {
       const del = deliveries.get(id);
@@ -360,6 +360,10 @@ export class DispatcherAgent {
       const d = orderedBatch[i];
       d.motorista = motorista;
       d.sequenciaEsperada = activeCount + i + 1;
+      if (romaneioId) {
+        d.romaneioId = romaneioId;
+      }
+      d.despachadoEm = new Date().toISOString();
       
       const destX = d.destino!.x;
       const destY = d.destino!.y;

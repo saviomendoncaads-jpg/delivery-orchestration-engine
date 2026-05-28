@@ -79,12 +79,36 @@ async function inicializarBanco() {
       LOJA_ID VARCHAR(100) NULL,
       NOME_LOJA NVARCHAR(255) NULL,
       NOME_EMPRESA NVARCHAR(255) NULL,
-      CLIENTE_DOCUMENTO NVARCHAR(50) NULL
+      CLIENTE_DOCUMENTO NVARCHAR(50) NULL,
+      ROMANEIO_ID VARCHAR(100) NULL,
+      BAIRRO NVARCHAR(255) NULL,
+      FORMA_PAGAMENTO VARCHAR(100) NULL,
+      DESPACHADO_EM VARCHAR(100) NULL
     );
 
     IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'CLIENTE_DOCUMENTO')
     BEGIN
       ALTER TABLE ENTREGAS ADD CLIENTE_DOCUMENTO NVARCHAR(50) NULL;
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'ROMANEIO_ID')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD ROMANEIO_ID VARCHAR(100) NULL;
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'BAIRRO')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD BAIRRO NVARCHAR(255) NULL;
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'FORMA_PAGAMENTO')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD FORMA_PAGAMENTO VARCHAR(100) NULL;
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'DESPACHADO_EM')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD DESPACHADO_EM VARCHAR(100) NULL;
     END
 
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LOGS_EVENTOS' AND xtype='U')
@@ -250,6 +274,10 @@ export async function obterEntregas(): Promise<Entrega[]> {
       nomeLoja: row.NOME_LOJA || undefined,
       nomeEmpresa: row.NOME_EMPRESA || undefined,
       clienteDocumento: row.CLIENTE_DOCUMENTO || undefined,
+      romaneioId: row.ROMANEIO_ID || undefined,
+      bairro: row.BAIRRO || undefined,
+      formaPagamento: row.FORMA_PAGAMENTO || undefined,
+      despachadoEm: row.DESPACHADO_EM || undefined,
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter entregas:', err);
@@ -291,10 +319,14 @@ export async function salvarEntrega(e: Entrega) {
           LOJA_ID = @lojaId,
           NOME_LOJA = @nomeLoja,
           NOME_EMPRESA = @nomeEmpresa,
-          CLIENTE_DOCUMENTO = @clienteDocumento
+          CLIENTE_DOCUMENTO = @clienteDocumento,
+          ROMANEIO_ID = @romaneioId,
+          BAIRRO = @bairro,
+          FORMA_PAGAMENTO = @formaPagamento,
+          DESPACHADO_EM = @despachadoEm
       WHEN NOT MATCHED THEN
-        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO)
-        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento);
+        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO, ROMANEIO_ID, BAIRRO, FORMA_PAGAMENTO, DESPACHADO_EM)
+        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento, @romaneioId, @bairro, @formaPagamento, @despachadoEm);
     `;
     
     await pool.request()
@@ -326,6 +358,10 @@ export async function salvarEntrega(e: Entrega) {
       .input('nomeLoja', mssql.NVarChar, e.nomeLoja || null)
       .input('nomeEmpresa', mssql.NVarChar, e.nomeEmpresa || null)
       .input('clienteDocumento', mssql.NVarChar, e.clienteDocumento || null)
+      .input('romaneioId', mssql.VarChar, e.romaneioId || null)
+      .input('bairro', mssql.NVarChar, e.bairro || null)
+      .input('formaPagamento', mssql.VarChar, e.formaPagamento || null)
+      .input('despachadoEm', mssql.VarChar, e.despachadoEm || null)
       .query(query);
   } catch (err) {
     console.error(`[Banco de Dados] Erro ao salvar entrega ${e.id}:`, err);
