@@ -275,7 +275,7 @@ router.post('/deliveries/dispatch-batch', async (req: Request, res: Response) =>
 
 // 1. Ingestar nova entrega
 router.post('/deliveries', async (req: Request, res: Response) => {
-  const { clientName, clienteDocumento, address, items, priority, cargoType, webhookUrl, formaPagamento, bairro, referencia, valor, driverId, x, y } = req.body;
+  const { clientName, clienteDocumento, address, items, priority, cargoType, webhookUrl, formaPagamento, bairro, cidade, referencia, valor, driverId, x, y } = req.body;
 
   if (!clientName || !address || !priority || !cargoType) {
     res.status(400).json({ error: 'Campos obrigatórios ausentes' });
@@ -312,6 +312,7 @@ router.post('/deliveries', async (req: Request, res: Response) => {
     atualizadoEm: new Date().toISOString(),
     formaPagamento: (formaPagamento || 'maquininha') as FormaPagamento,
     bairro: bairro || undefined,
+    cidade: cidade || undefined,
     referencia: referencia || undefined,
     lojaId,
     nomeLoja,

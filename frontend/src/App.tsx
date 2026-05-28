@@ -180,6 +180,7 @@ interface Entrega {
   formaPagamento?: 'maquininha' | 'pix' | 'dinheiro';
   romaneioId?: string;
   bairro?: string;
+  cidade?: string;
   referencia?: string;
   despachadoEm?: string;
   dataHoraConclusao?: string;
@@ -634,6 +635,7 @@ export default function App() {
   const [address, setAddress] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
   const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
   const [referencia, setReferencia] = useState('');
   const [items, setItems] = useState('');
   const [priority, setPriority] = useState<'baixa' | 'media' | 'alta' | 'critica'>('media');
@@ -1745,8 +1747,8 @@ export default function App() {
 
     try {
       // Faz fetch na API de geocodificação pública do Nominatim
-      // Adicionamos ", Abreu e Lima, Pernambuco, Brasil" para filtrar na cidade foco
-      const query = `${fullAddress}, Abreu e Lima, Pernambuco, Brasil`;
+      // Adicionamos ", Abreu e Lima, Pernambuco, Brasil" para filtrar na cidade foco se não houver cidade especificada
+      const query = cidade.trim() ? `${fullAddress}, ${cidade.trim()}, Brasil` : `${fullAddress}, Abreu e Lima, Pernambuco, Brasil`;
       const resGeocode = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
       );
@@ -1778,6 +1780,7 @@ export default function App() {
           cargoType,
           formaPagamento,
           bairro: bairro || undefined,
+          cidade: cidade || undefined,
           referencia: referencia || undefined,
           webhookUrl: webhookUrl || undefined,
           valor: valor ? parseFloat(valor) : undefined,
@@ -1794,6 +1797,7 @@ export default function App() {
         setAddress('');
         setAddressNumber('');
         setBairro('');
+        setCidade('');
         setReferencia('');
         setItems('');
         setPriority('media');
@@ -3141,15 +3145,26 @@ export default function App() {
                 />
               </div>
               <div className="form-group">
-                <label>Referência <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>(opcional)</span></label>
+                <label>Cidade <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>(opcional)</span></label>
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="Ex: Ao lado do banco"
-                  value={referencia}
-                  onChange={(e) => setReferencia(e.target.value)}
+                  placeholder="Ex: Abreu e Lima"
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
                 />
               </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Referência <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>(opcional)</span></label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Ex: Ao lado do banco"
+                value={referencia}
+                onChange={(e) => setReferencia(e.target.value)}
+              />
             </div>
             
             <div className="form-group">

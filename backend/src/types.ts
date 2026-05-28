@@ -89,6 +89,7 @@ export interface Entrega {
   formaPagamento?: FormaPagamento;
   romaneioId?: string;
   bairro?: string;
+  cidade?: string;
   referencia?: string;
   despachadoEm?: string;
 

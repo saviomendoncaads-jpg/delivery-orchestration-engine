@@ -82,6 +82,7 @@ async function inicializarBanco() {
       CLIENTE_DOCUMENTO NVARCHAR(50) NULL,
       ROMANEIO_ID VARCHAR(100) NULL,
       BAIRRO NVARCHAR(255) NULL,
+      CIDADE NVARCHAR(255) NULL,
       FORMA_PAGAMENTO VARCHAR(100) NULL,
       DESPACHADO_EM VARCHAR(100) NULL
     );
@@ -99,6 +100,11 @@ async function inicializarBanco() {
     IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'BAIRRO')
     BEGIN
       ALTER TABLE ENTREGAS ADD BAIRRO NVARCHAR(255) NULL;
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'CIDADE')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD CIDADE NVARCHAR(255) NULL;
     END
 
     IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'FORMA_PAGAMENTO')
@@ -276,6 +282,7 @@ export async function obterEntregas(): Promise<Entrega[]> {
       clienteDocumento: row.CLIENTE_DOCUMENTO || undefined,
       romaneioId: row.ROMANEIO_ID || undefined,
       bairro: row.BAIRRO || undefined,
+      cidade: row.CIDADE || undefined,
       formaPagamento: row.FORMA_PAGAMENTO || undefined,
       despachadoEm: row.DESPACHADO_EM || undefined,
     }));
@@ -322,11 +329,12 @@ export async function salvarEntrega(e: Entrega) {
           CLIENTE_DOCUMENTO = @clienteDocumento,
           ROMANEIO_ID = @romaneioId,
           BAIRRO = @bairro,
+          CIDADE = @cidade,
           FORMA_PAGAMENTO = @formaPagamento,
           DESPACHADO_EM = @despachadoEm
       WHEN NOT MATCHED THEN
-        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO, ROMANEIO_ID, BAIRRO, FORMA_PAGAMENTO, DESPACHADO_EM)
-        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento, @romaneioId, @bairro, @formaPagamento, @despachadoEm);
+        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO, ROMANEIO_ID, BAIRRO, CIDADE, FORMA_PAGAMENTO, DESPACHADO_EM)
+        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento, @romaneioId, @bairro, @cidade, @formaPagamento, @despachadoEm);
     `;
     
     await pool.request()
@@ -360,6 +368,7 @@ export async function salvarEntrega(e: Entrega) {
       .input('clienteDocumento', mssql.NVarChar, e.clienteDocumento || null)
       .input('romaneioId', mssql.VarChar, e.romaneioId || null)
       .input('bairro', mssql.NVarChar, e.bairro || null)
+      .input('cidade', mssql.NVarChar, e.cidade || null)
       .input('formaPagamento', mssql.VarChar, e.formaPagamento || null)
       .input('despachadoEm', mssql.VarChar, e.despachadoEm || null)
       .query(query);
