@@ -37,6 +37,15 @@ router.post('/login', (req: Request, res: Response) => {
     return;
   }
 
+  // Bloqueio por inadimplência: empresa suspensa/cancelada não pode reabrir sessão.
+  if (empresa.statusFinanceiro === 'SUSPENSO' || empresa.statusFinanceiro === 'CANCELADO') {
+    res.status(402).json({
+      error: 'Assinatura suspensa por inadimplência. Regularize o pagamento para acessar o painel.',
+      codigo: 'PAYMENT_REQUIRED'
+    });
+    return;
+  }
+
   const token = crypto.randomUUID();
   const sessao: Sessao = {
     tipo: 'loja',
@@ -120,6 +129,27 @@ export function verificarSessao(req: Request & { sessao?: Sessao }, res: Respons
     return;
   }
   req.sessao = sessao;
+  next();
+}
+
+/**
+ * Middleware que bloqueia ações de escrita de lojas cuja empresa está
+ * SUSPENSA/CANCELADA por inadimplência (grace period D+7 esgotado).
+ * Sessões admin e leitura não são afetadas — só mutações de loja.
+ */
+export function exigirEmpresaAdimplente(req: Request & { sessao?: Sessao }, res: Response, next: NextFunction) {
+  const sessao = obterSessaoDoRequest(req);
+  if (sessao?.tipo === 'loja' && sessao.lojaId) {
+    const loja = lojas.find(l => l.id === sessao.lojaId);
+    const empresa = loja ? empresas.find(e => e.id === loja.empresaId) : undefined;
+    if (empresa && (empresa.statusFinanceiro === 'SUSPENSO' || empresa.statusFinanceiro === 'CANCELADO')) {
+      res.status(402).json({
+        error: 'Assinatura suspensa por inadimplência. Regularize o pagamento para continuar operando.',
+        codigo: 'PAYMENT_REQUIRED'
+      });
+      return;
+    }
+  }
   next();
 }
 

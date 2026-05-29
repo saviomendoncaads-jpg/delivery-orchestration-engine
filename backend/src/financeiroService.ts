@@ -74,9 +74,16 @@ export async function rotinaVerificacaoInadimplencia() {
     for (const emp of empresas) {
       const statusAnterior = emp.statusFinanceiro;
       let novoStatus = 'REGULAR';
-      
+
       if (empresasEmAtrasoCritico.has(emp.id)) {
         novoStatus = 'INADIMPLENTE';
+      }
+
+      // Não regredir um estado mais severo (SUSPENSO/CANCELADO) de volta para
+      // INADIMPLENTE enquanto ainda houver débito — só a quitação total (-> REGULAR)
+      // ou o fluxo de dunning altera esses estados. Evita conflito com a régua D+7.
+      if (novoStatus === 'INADIMPLENTE' && (statusAnterior === 'SUSPENSO' || statusAnterior === 'CANCELADO')) {
+        novoStatus = statusAnterior;
       }
 
       if (statusAnterior !== novoStatus) {
@@ -246,17 +253,22 @@ async function seedFinanceiro() {
           VALUES (@id, @empId, @subId, @valor, 0.00, @status, @emissao, @venc, @pgto, @ref, @criado)
         `);
 
-      // 4. Fatura 3: Pendente/Atrasada (Maio/2026) - Venceu dia 10 de Maio (atraso de mais de 10 dias comparado com dia 28/29 de Maio)
-      const dataVenc3 = new Date(2026, 4, 10).toISOString(); // 10 de Maio
+      // 4. Fatura 3: Pendente (próximo ciclo) — vence no dia 10 do próximo mês
+      // relativo a hoje. Fica PENDENTE no painel SEM disparar a suspensão D+7 da
+      // régua de dunning (que trancaria o login da loja de demonstração).
+      const vencFuturo = new Date(agora.getFullYear(), agora.getMonth() + 1, 10);
+      const dataVenc3 = vencFuturo.toISOString();
+      const ref3 = `${String(vencFuturo.getMonth() + 1).padStart(2, '0')}/${vencFuturo.getFullYear()}`;
+      const emissao3 = new Date(agora.getFullYear(), agora.getMonth() + 1, 1).toISOString();
       await pool.request()
         .input('id', mssql.VarChar, `fat-mai-${emp.id.substring(0, 4)}`)
         .input('empId', mssql.VarChar, emp.id)
         .input('subId', mssql.VarChar, assinaturaId)
         .input('valor', mssql.Decimal(10, 2), 299.00)
         .input('status', mssql.VarChar, 'PENDENTE')
-        .input('emissao', mssql.VarChar, new Date(2026, 4, 1).toISOString())
+        .input('emissao', mssql.VarChar, emissao3)
         .input('venc', mssql.VarChar, dataVenc3)
-        .input('ref', mssql.VarChar, '05/2026')
+        .input('ref', mssql.VarChar, ref3)
         .input('criado', mssql.VarChar, dataVenc3)
         .query(`
           INSERT INTO FATURAS (ID, EMPRESA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, CRIADO_EM)

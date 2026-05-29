@@ -15,6 +15,7 @@ import { Entrega, Motorista } from './types';
 import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
 import webhookRouter from './billing/webhookRoutes';
 import { iniciarWorkerWebhooks } from './billing/webhookProcessor';
+import { iniciarDunning } from './billing/dunningScheduler';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -360,6 +361,9 @@ async function startServer() {
 
   // Inicia o worker que processa a fila de webhooks de pagamento (retry/backoff/DLQ)
   iniciarWorkerWebhooks();
+
+  // Inicia a régua de cobrança automatizada (D-3/D0/D+3/D+7 + suspensão)
+  iniciarDunning();
 
   httpServer.listen(port, () => {
     console.log(`==================================================`);

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { broker } from './broker';
 import { Entrega, Motorista, StatusEntrega, Prioridade, TipoCarga, FormaPagamento, LogWebhook, Incidente, TipoVeiculo } from './types';
 import { salvarEntrega, obterEntregas, obterMotoristas, salvarMotorista, deletarMotorista, obterTiposVeiculos, salvarTipoVeiculo, obterProdutos } from './database';
-import { obterSessaoDoRequest } from './auth';
+import { obterSessaoDoRequest, exigirEmpresaAdimplente } from './auth';
 import { lojas, empresas } from './tenants';
 import { autoDispatchSettings } from './config';
 import fs from 'fs';
@@ -274,7 +274,7 @@ router.post('/deliveries/dispatch-batch', async (req: Request, res: Response) =>
 });
 
 // 1. Ingestar nova entrega
-router.post('/deliveries', async (req: Request, res: Response) => {
+router.post('/deliveries', exigirEmpresaAdimplente, async (req: Request, res: Response) => {
   const { clientName, clienteDocumento, address, items, priority, cargoType, webhookUrl, formaPagamento, bairro, cidade, referencia, valor, driverId, x, y } = req.body;
 
   if (!clientName || !address || !priority || !cargoType) {
