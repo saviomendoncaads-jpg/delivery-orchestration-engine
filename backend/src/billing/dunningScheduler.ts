@@ -2,6 +2,7 @@ import mssql from 'mssql/msnodesqlv8';
 import { pool } from '../database';
 import { getGateway } from './gatewayFactory';
 import { appendLedger } from './ledgerService';
+import { transicionar } from './SubscriptionStateMachine';
 import { sessions } from '../auth';
 import { lojas, empresas } from '../tenants';
 
@@ -110,13 +111,27 @@ async function aplicarEstagio(estagio: Estagio, fat: any): Promise<void> {
         metadados: { estagio },
         criadoPor: 'SYSTEM',
       });
+      // Reflete o atraso na assinatura (ATIVA -> ATRASADA) para habilitar a suspensão em D+7.
+      if (fat.ASSINATURAS_EMPRESAS_ID) {
+        await transicionar(fat.ASSINATURAS_EMPRESAS_ID, 'payment.overdue');
+      }
       notificar(fat, 'ATRASO_D3');
       break;
 
-    case 'SUSPENSAO_D7':
-      await suspenderEmpresa(fat.EMPRESA_ID, fat.ASSINATURAS_EMPRESAS_ID);
+    case 'SUSPENSAO_D7': {
+      // Via state machine quando há assinatura (deriva empresa + revoga sessões).
+      // Fallback para suspensão a nível de empresa em faturas avulsas (sem assinatura).
+      let suspensoViaSM = false;
+      if (fat.ASSINATURAS_EMPRESAS_ID) {
+        const r = await transicionar(fat.ASSINATURAS_EMPRESAS_ID, 'SUSPENDER');
+        suspensoViaSM = r.ok;
+      }
+      if (!suspensoViaSM) {
+        await suspenderEmpresa(fat.EMPRESA_ID, fat.ASSINATURAS_EMPRESAS_ID);
+      }
       notificar(fat, 'SUSPENSAO_D7');
       break;
+    }
   }
 }
 

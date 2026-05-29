@@ -3569,16 +3569,28 @@ export default function App() {
                               <td style={{ fontFamily: 'var(--font-mono)' }}>R$ {sub.valorEfetivo.toFixed(2)}</td>
                               <td>Todo dia {sub.diaVencimento}</td>
                               <td>
-                                <span style={{
-                                  display: 'inline-block',
-                                  padding: '0.1rem 0.4rem',
-                                  borderRadius: '4px',
-                                  fontSize: '0.75rem',
-                                  background: sub.status === 'ATIVA' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
-                                  color: sub.status === 'ATIVA' ? 'var(--color-emerald)' : 'var(--color-rose)'
-                                }}>
-                                  {sub.status}
-                                </span>
+                                {(() => {
+                                  const estilos: Record<string, { bg: string; cor: string; label: string }> = {
+                                    ATIVA:     { bg: 'rgba(16,185,129,0.1)', cor: 'var(--color-emerald)', label: 'Ativa' },
+                                    TRIAL:     { bg: 'rgba(59,130,246,0.1)', cor: 'var(--color-blue, #3b82f6)', label: 'Trial' },
+                                    ATRASADA:  { bg: 'rgba(245,158,11,0.1)', cor: 'var(--color-amber)', label: 'Atrasada' },
+                                    SUSPENSA:  { bg: 'rgba(244,63,94,0.1)', cor: 'var(--color-rose)', label: 'Suspensa' },
+                                    CANCELADA: { bg: 'rgba(75,85,99,0.15)', cor: '#9ca3af', label: 'Cancelada' },
+                                  };
+                                  const e = estilos[sub.status] ?? estilos.CANCELADA;
+                                  return (
+                                    <span style={{
+                                      display: 'inline-block',
+                                      padding: '0.1rem 0.4rem',
+                                      borderRadius: '4px',
+                                      fontSize: '0.75rem',
+                                      background: e.bg,
+                                      color: e.cor
+                                    }}>
+                                      {e.label}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td>{sub.proximoFaturamento ? new Date(sub.proximoFaturamento).toLocaleDateString('pt-BR') : '-'}</td>
                             </tr>

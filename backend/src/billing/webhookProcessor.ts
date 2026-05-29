@@ -2,6 +2,7 @@ import mssql from 'mssql/msnodesqlv8';
 import { pool } from '../database';
 import { getGateway } from './gatewayFactory';
 import { appendLedger } from './ledgerService';
+import { transicionar } from './SubscriptionStateMachine';
 import { WebhookNormalizado } from './PaymentGatewayAdapter';
 
 // Worker assíncrono que consome a fila WEBHOOK_EVENTS com retry/backoff e DLQ.
@@ -78,6 +79,8 @@ async function processarEvento(evt: any): Promise<void> {
 
 /** payment.confirmed: baixa atômica e idempotente da fatura + ledger de crédito. */
 async function darBaixaPorWebhook(norm: WebhookNormalizado, gatewayEventId: string): Promise<void> {
+  let assinaturaParaAtivar: string | null = null;
+
   const tx = new mssql.Transaction(pool);
   await tx.begin();
   try {
@@ -94,6 +97,7 @@ async function darBaixaPorWebhook(norm: WebhookNormalizado, gatewayEventId: stri
       return;
     }
 
+    assinaturaParaAtivar = fat.ASSINATURAS_EMPRESAS_ID ?? null;
     const pgto = norm.pagoEm || new Date().toISOString();
     const valorLiquido = Number(fat.VALOR_BRUTO) - Number(fat.VALOR_DESCONTO);
 
@@ -119,6 +123,16 @@ async function darBaixaPorWebhook(norm: WebhookNormalizado, gatewayEventId: stri
   } catch (e) {
     await tx.rollback();
     throw e;
+  }
+
+  // Fora da transação da fatura: reativa a assinatura (ATRASADA/SUSPENSA -> ATIVA).
+  // Transição inválida (ex.: já ATIVA) é tratada como no-op pela state machine.
+  if (assinaturaParaAtivar) {
+    try {
+      await transicionar(assinaturaParaAtivar, 'payment.confirmed');
+    } catch (e: any) {
+      console.warn('[Webhook] Falha ao reativar assinatura:', e?.message);
+    }
   }
 }
 
@@ -171,31 +185,28 @@ async function marcarAtrasoPorWebhook(norm: WebhookNormalizado): Promise<void> {
     metadados: { eventType: norm.eventType },
     criadoPor: 'SYSTEM',
   });
+
+  // Reflete o atraso na assinatura (ATIVA -> ATRASADA), se houver vínculo.
+  if (fat.ASSINATURAS_EMPRESAS_ID) {
+    try {
+      await transicionar(fat.ASSINATURAS_EMPRESAS_ID, 'payment.overdue');
+    } catch (e: any) {
+      console.warn('[Webhook] Falha ao marcar atraso da assinatura:', e?.message);
+    }
+  }
 }
 
-/** subscription.deleted: cancela a assinatura no domínio atual ('CANCELADA'). */
+/** subscription.deleted: cancela a assinatura via state machine (deriva empresa + sessões). */
 async function cancelarAssinaturaPorWebhook(norm: WebhookNormalizado): Promise<void> {
   if (!norm.gatewaySubscriptionId) return;
   const subRes = await pool.request()
     .input('gw', mssql.VarChar, norm.gatewaySubscriptionId)
-    .query('SELECT * FROM ASSINATURAS_EMPRESAS WHERE GATEWAY_SUBSCRIPTION_ID = @gw');
+    .query('SELECT ID FROM ASSINATURAS_EMPRESAS WHERE GATEWAY_SUBSCRIPTION_ID = @gw');
   if (subRes.recordset.length === 0) return;
-  const sub = subRes.recordset[0];
 
-  await pool.request()
-    .input('id', mssql.VarChar, sub.ID)
-    .input('cancel', mssql.VarChar, new Date().toISOString())
-    .query("UPDATE ASSINATURAS_EMPRESAS SET STATUS = 'CANCELADA', CANCELADO_EM = @cancel WHERE ID = @id");
-
-  await appendLedger({
-    empresaId: sub.EMPRESA_ID,
-    assinaturaId: sub.ID,
-    tipo: 'CANCELAMENTO',
-    valor: 0,
-    origem: 'WEBHOOK',
-    metadados: { eventType: norm.eventType, gatewaySubscriptionId: norm.gatewaySubscriptionId },
-    criadoPor: 'SYSTEM',
-  });
+  // A state machine cuida do UPDATE de status, da derivação do status da empresa,
+  // do ledger (TRANSICAO) e da revogação de sessões.
+  await transicionar(subRes.recordset[0].ID, 'subscription.deleted');
 }
 
 /** Localiza a fatura pelo GATEWAY_FATURA_ID (ou pelo ID local como fallback). */
