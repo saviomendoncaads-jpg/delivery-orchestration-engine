@@ -4,6 +4,7 @@ import mssql from 'mssql/msnodesqlv8';
 import { pool } from './database';
 import { verificarAdmin, sessions } from './auth';
 import { empresas, lojas } from './tenants';
+import { getGateway } from './billing/gatewayFactory';
 
 const router = Router();
 
@@ -372,8 +373,19 @@ router.post('/cobrar-manual', verificarAdmin, async (req: Request, res: Response
     const dataVenc = new Date(vencimento);
     const refMesAno = `${String(dataVenc.getMonth() + 1).padStart(2, '0')}/${dataVenc.getFullYear()}`;
 
-    const boletoUrl = `https://boleto.pagamento.com/faturas/${id}`;
-    const pixCopiaCola = `00020101021226870014br.gov.bcb.pix2565pix.gateway.com/qr/${id}`;
+    // Cobrança gerada pelo gateway abstrato (driver por env; MOCK por padrão).
+    // O MockAdapter reproduz o mesmo formato de boleto/pix usado anteriormente.
+    const gateway = getGateway();
+    const cobranca = await gateway.criarCobranca({
+      empresaId,
+      faturaId: id,
+      valor: Number(valor),
+      vencimento: dataVenc.toISOString(),
+      metodo: 'PIX',
+      descricao: descricao || `Cobrança avulsa ${refMesAno}`,
+    });
+    const boletoUrl = cobranca.boletoUrl ?? null;
+    const pixCopiaCola = cobranca.pixCopiaCola ?? null;
 
     await pool.request()
       .input('id', mssql.VarChar, id)
@@ -385,10 +397,11 @@ router.post('/cobrar-manual', verificarAdmin, async (req: Request, res: Response
       .input('ref', mssql.VarChar, refMesAno)
       .input('boleto', mssql.NVarChar, boletoUrl)
       .input('pix', mssql.NVarChar, pixCopiaCola)
+      .input('gwId', mssql.VarChar, cobranca.gatewayFaturaId)
       .input('criado', mssql.VarChar, dataEmissao)
       .query(`
-        INSERT INTO FATURAS (ID, EMPRESA_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, BOLETO_URL, PIX_COPIA_COLA, CRIADO_EM)
-        VALUES (@id, @empId, @valor, 0.00, @status, @emissao, @venc, @ref, @boleto, @pix, @criado)
+        INSERT INTO FATURAS (ID, EMPRESA_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, BOLETO_URL, PIX_COPIA_COLA, GATEWAY_FATURA_ID, CRIADO_EM)
+        VALUES (@id, @empId, @valor, 0.00, @status, @emissao, @venc, @ref, @boleto, @pix, @gwId, @criado)
       `);
 
     console.log(`[Financeiro] Fatura manual criada com sucesso para ${emp.nome}. Valor: R$ ${valor}`);
