@@ -1,0 +1,25 @@
+{
+  "name": "gestor-distre",
+  "version": "0.1.0",
+  "description": "Gestor Distre - app desktop da loja: recebe pedidos e imprime a comanda 80mm de forma silenciosa (padrao iFood).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "author": "Distre",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "build": {
+    "appId": "com.distre.gestor",
+    "productName": "Gestor Distre",
+    "files": ["main.js", "preload.js", "index.html", "renderer.js"],
+    "win": { "target": "nsis" }
+  }
+}

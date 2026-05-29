@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Gestor Distre</title>
+  <style>
+    :root {
+      --bg: #090d16; --surface: #141b27; --border: #1f293d;
+      --text: #f3f4f6; --muted: #9ca3af; --accent: #22d3ee; --accent-2: #06b6d4;
+      --emerald: #10b981; --amber: #f59e0b; --rose: #f43f5e;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); background: rgba(18,24,36,.6); }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #04141a; display: grid; place-items: center; font-weight: 800; }
+    .pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .pill.on { color: var(--emerald); border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.08); }
+    .pill.off { color: var(--rose); border-color: rgba(244,63,94,.4); background: rgba(244,63,94,.08); }
+    main { flex: 1; display: grid; grid-template-columns: 340px 1fr; gap: 18px; padding: 18px; overflow: hidden; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 14px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+    input, select { width: 100%; min-height: 40px; padding: 0 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.25); }
+    button { min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--text); font-weight: 600; cursor: pointer; font-size: 14px; }
+    button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); color: #04141a; border-color: transparent; }
+    button.full { width: 100%; }
+    .stack { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+    .orders { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; height: 100%; }
+    .order { border: 1px solid var(--border); border-left: 3px solid var(--amber); border-radius: 10px; padding: 12px 14px; background: var(--bg); }
+    .order .id { font-family: monospace; color: var(--amber); font-weight: 700; }
+    .order .cli { margin-top: 4px; }
+    .order .end { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .order .val { color: var(--emerald); font-weight: 700; margin-top: 6px; }
+    .empty { color: var(--muted); font-style: italic; padding: 24px; text-align: center; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+    .toast { position: fixed; bottom: 18px; right: 18px; background: var(--emerald); color: #04140c; padding: 12px 18px; border-radius: 10px; font-weight: 700; opacity: 0; transform: translateY(10px); transition: .25s; }
+    .toast.show { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">D</span> Gestor Distre <span class="pill" style="margin-left:8px">v0.1 POC</span></div>
+    <span id="conn" class="pill off">Desconectado</span>
+  </header>
+
+  <main>
+    <section class="card" style="overflow-y:auto">
+      <h2>Conexão da Loja</h2>
+      <label>URL do Backend</label>
+      <input id="backendUrl" value="http://localhost:5000" />
+      <label>Usuário</label>
+      <input id="usuario" placeholder="usuário da loja" />
+      <label>Senha</label>
+      <input id="senha" type="password" placeholder="senha" />
+      <div class="stack">
+        <button class="primary full" id="btnConectar">Conectar</button>
+      </div>
+
+      <h2 style="margin-top:24px">Impressora 80mm</h2>
+      <label>Impressora</label>
+      <select id="impressora"><option value="">(impressora padrão do sistema)</option></select>
+      <div class="stack">
+        <button class="full" id="btnAtualizar">Atualizar lista</button>
+        <button class="full" id="btnTeste">Imprimir comanda de teste</button>
+      </div>
+      <p class="hint">A impressão é <b>silenciosa</b> (sem diálogo). Selecione sua impressora térmica 80mm e clique em "Imprimir comanda de teste" para validar. Quando um pedido novo entra, a comanda sai sozinha.</p>
+    </section>
+
+    <section class="card" style="display:flex;flex-direction:column;overflow:hidden">
+      <h2>Pedidos Recebidos (fila)</h2>
+      <div id="orders" class="orders"><div class="empty">Conecte-se para receber pedidos.</div></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>
