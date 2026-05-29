@@ -205,24 +205,28 @@ async function seedFinanceiro() {
     const agora = new Date();
     const agoraStr = agora.toISOString();
 
-    for (const emp of empresas) {
-      // 1. Criar Assinatura para a empresa no Plano Pro (silver)
+    // Cobrança por LOJA: uma assinatura + faturas por loja.
+    for (const loja of lojas) {
+      const lojaKey = loja.id.substring(0, 6);
+      // 1. Assinatura ATIVA da loja no Plano Pro (silver)
       const assinaturaId = `sub-${crypto.randomUUID().substring(0, 8)}`;
       const proximoFat = new Date(agora.getFullYear(), agora.getMonth() + 1, 10).toISOString();
       await pool.request()
         .input('id', mssql.VarChar, assinaturaId)
-        .input('empId', mssql.VarChar, emp.id)
+        .input('empId', mssql.VarChar, loja.empresaId)
+        .input('lojaId', mssql.VarChar, loja.id)
         .input('planoId', mssql.VarChar, 'silver')
         .input('proximo', mssql.VarChar, proximoFat)
         .input('criado', mssql.VarChar, agoraStr)
-        .query('INSERT INTO ASSINATURAS_EMPRESAS (ID, EMPRESA_ID, PLANO_ID, STATUS, DIA_VENCIMENTO, CRIADO_EM, PROXIMO_FATURAMENTO) VALUES (@id, @empId, @planoId, \'ATIVA\', 10, @criado, @proximo)');
+        .query("INSERT INTO ASSINATURAS_EMPRESAS (ID, EMPRESA_ID, LOJA_ID, PLANO_ID, STATUS, DIA_VENCIMENTO, CRIADO_EM, PROXIMO_FATURAMENTO) VALUES (@id, @empId, @lojaId, @planoId, 'ATIVA', 10, @criado, @proximo)");
 
       // 2. Fatura 1: Paga (Março/2026)
-      const dataVenc1 = new Date(2026, 2, 10).toISOString(); // 10 de Março
+      const dataVenc1 = new Date(2026, 2, 10).toISOString();
       const dataPgto1 = new Date(2026, 2, 8).toISOString();
       await pool.request()
-        .input('id', mssql.VarChar, `fat-mar-${emp.id.substring(0, 4)}`)
-        .input('empId', mssql.VarChar, emp.id)
+        .input('id', mssql.VarChar, `fat-mar-${lojaKey}`)
+        .input('empId', mssql.VarChar, loja.empresaId)
+        .input('lojaId', mssql.VarChar, loja.id)
         .input('subId', mssql.VarChar, assinaturaId)
         .input('valor', mssql.Decimal(10, 2), 299.00)
         .input('status', mssql.VarChar, 'PAGA')
@@ -232,16 +236,17 @@ async function seedFinanceiro() {
         .input('ref', mssql.VarChar, '03/2026')
         .input('criado', mssql.VarChar, dataVenc1)
         .query(`
-          INSERT INTO FATURAS (ID, EMPRESA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, DATA_PAGAMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
-          VALUES (@id, @empId, @subId, @valor, 0.00, @status, @emissao, @venc, @pgto, @ref, @criado)
+          INSERT INTO FATURAS (ID, EMPRESA_ID, LOJA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, DATA_PAGAMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
+          VALUES (@id, @empId, @lojaId, @subId, @valor, 0.00, @status, @emissao, @venc, @pgto, @ref, @criado)
         `);
 
       // 3. Fatura 2: Paga (Abril/2026)
-      const dataVenc2 = new Date(2026, 3, 10).toISOString(); // 10 de Abril
+      const dataVenc2 = new Date(2026, 3, 10).toISOString();
       const dataPgto2 = new Date(2026, 3, 9).toISOString();
       await pool.request()
-        .input('id', mssql.VarChar, `fat-abr-${emp.id.substring(0, 4)}`)
-        .input('empId', mssql.VarChar, emp.id)
+        .input('id', mssql.VarChar, `fat-abr-${lojaKey}`)
+        .input('empId', mssql.VarChar, loja.empresaId)
+        .input('lojaId', mssql.VarChar, loja.id)
         .input('subId', mssql.VarChar, assinaturaId)
         .input('valor', mssql.Decimal(10, 2), 299.00)
         .input('status', mssql.VarChar, 'PAGA')
@@ -251,20 +256,20 @@ async function seedFinanceiro() {
         .input('ref', mssql.VarChar, '04/2026')
         .input('criado', mssql.VarChar, dataVenc2)
         .query(`
-          INSERT INTO FATURAS (ID, EMPRESA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, DATA_PAGAMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
-          VALUES (@id, @empId, @subId, @valor, 0.00, @status, @emissao, @venc, @pgto, @ref, @criado)
+          INSERT INTO FATURAS (ID, EMPRESA_ID, LOJA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, DATA_PAGAMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
+          VALUES (@id, @empId, @lojaId, @subId, @valor, 0.00, @status, @emissao, @venc, @pgto, @ref, @criado)
         `);
 
-      // 4. Fatura 3: Pendente (próximo ciclo) — vence no dia 10 do próximo mês
-      // relativo a hoje. Fica PENDENTE no painel SEM disparar a suspensão D+7 da
-      // régua de dunning (que trancaria o login da loja de demonstração).
+      // 4. Fatura 3: Pendente (próximo ciclo) — vence dia 10 do próximo mês, sem disparar
+      // a suspensão D+7 da régua (não tranca o login da loja de demonstração).
       const vencFuturo = new Date(agora.getFullYear(), agora.getMonth() + 1, 10);
       const dataVenc3 = vencFuturo.toISOString();
       const ref3 = `${String(vencFuturo.getMonth() + 1).padStart(2, '0')}/${vencFuturo.getFullYear()}`;
       const emissao3 = new Date(agora.getFullYear(), agora.getMonth() + 1, 1).toISOString();
       await pool.request()
-        .input('id', mssql.VarChar, `fat-mai-${emp.id.substring(0, 4)}`)
-        .input('empId', mssql.VarChar, emp.id)
+        .input('id', mssql.VarChar, `fat-mai-${lojaKey}`)
+        .input('empId', mssql.VarChar, loja.empresaId)
+        .input('lojaId', mssql.VarChar, loja.id)
         .input('subId', mssql.VarChar, assinaturaId)
         .input('valor', mssql.Decimal(10, 2), 299.00)
         .input('status', mssql.VarChar, 'PENDENTE')
@@ -273,11 +278,11 @@ async function seedFinanceiro() {
         .input('ref', mssql.VarChar, ref3)
         .input('criado', mssql.VarChar, dataVenc3)
         .query(`
-          INSERT INTO FATURAS (ID, EMPRESA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
-          VALUES (@id, @empId, @subId, @valor, 0.00, @status, @emissao, @venc, @ref, @criado)
+          INSERT INTO FATURAS (ID, EMPRESA_ID, LOJA_ID, ASSINATURAS_EMPRESAS_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, CRIADO_EM)
+          VALUES (@id, @empId, @lojaId, @subId, @valor, 0.00, @status, @emissao, @venc, @ref, @criado)
         `);
-      
-      console.log(`[Financeiro] Criado faturas de seed para a empresa: ${emp.nome}`);
+
+      console.log(`[Financeiro] Seed de faturas criado para a loja: ${loja.nome}`);
     }
 
   } catch (err) {
