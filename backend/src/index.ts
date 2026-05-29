@@ -13,11 +13,18 @@ import { integratorAgent } from './integrator';
 import { conectarBanco, salvarMotorista } from './database';
 import { Entrega, Motorista } from './types';
 import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
+import webhookRouter from './billing/webhookRoutes';
+import { iniciarWorkerWebhooks } from './billing/webhookProcessor';
 
 const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors({ origin: '*' }));
+
+// Webhooks do gateway de pagamento: montados ANTES do express.json para receber
+// o corpo BRUTO (Buffer) e validar a assinatura HMAC. As demais rotas seguem JSON.
+app.use('/api/billing/webhooks', express.raw({ type: '*/*' }), webhookRouter);
+
 app.use(express.json());
 
 // Roteador de autenticação
@@ -350,6 +357,9 @@ async function startServer() {
 
   // Inicializa o módulo financeiro (seed + rotina de inadimplência)
   await inicializarFinanceiro();
+
+  // Inicia o worker que processa a fila de webhooks de pagamento (retry/backoff/DLQ)
+  iniciarWorkerWebhooks();
 
   httpServer.listen(port, () => {
     console.log(`==================================================`);
