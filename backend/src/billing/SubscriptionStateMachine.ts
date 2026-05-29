@@ -100,8 +100,9 @@ export async function transicionar(assinaturaId: string, evento: EventoAssinatur
         .query('UPDATE ASSINATURAS_EMPRESAS SET STATUS = @s WHERE ID = @id');
     }
 
-    // Deriva o status financeiro da empresa (fonte da verdade = assinatura).
-    await sincronizarStatusEmpresa(tx, sub.EMPRESA_ID, destino);
+    // Deriva o status financeiro da LOJA (cobrança por loja). Fallback p/ empresa
+    // em assinaturas legadas sem LOJA_ID.
+    await sincronizarStatusFinanceiro(tx, sub, destino);
 
     await appendLedger({
       empresaId: sub.EMPRESA_ID,
@@ -115,9 +116,11 @@ export async function transicionar(assinaturaId: string, evento: EventoAssinatur
 
     await tx.commit();
 
-    // Efeito de sessão fora da transação: estados severos derrubam o painel da loja.
+    // Efeito de sessão fora da transação: estados severos derrubam o painel.
+    // Por loja quando há LOJA_ID; senão (legado) por empresa.
     if (destino === 'SUSPENSA' || destino === 'CANCELADA') {
-      revogarSessoesDaEmpresa(sub.EMPRESA_ID);
+      if (sub.LOJA_ID) revogarSessoesDaLoja(sub.LOJA_ID);
+      else revogarSessoesDaEmpresa(sub.EMPRESA_ID);
     }
 
     return { ok: true, de: atual, para: destino };
@@ -127,14 +130,33 @@ export async function transicionar(assinaturaId: string, evento: EventoAssinatur
   }
 }
 
-async function sincronizarStatusEmpresa(tx: mssql.Transaction, empresaId: string, destino: StatusAssinatura): Promise<void> {
+async function sincronizarStatusFinanceiro(tx: mssql.Transaction, sub: any, destino: StatusAssinatura): Promise<void> {
   const novo = STATUS_EMPRESA[destino];
-  await tx.request()
-    .input('id', mssql.VarChar, empresaId)
-    .input('s', mssql.VarChar, novo)
-    .query('UPDATE EMPRESAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
-  const emp = empresas.find((e) => e.id === empresaId);
-  if (emp) emp.statusFinanceiro = novo;
+  if (sub.LOJA_ID) {
+    // Cobrança por loja: o status vive na LOJA.
+    await tx.request()
+      .input('id', mssql.VarChar, sub.LOJA_ID)
+      .input('s', mssql.VarChar, novo)
+      .query('UPDATE LOJAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
+    const loja = lojas.find((l) => l.id === sub.LOJA_ID);
+    if (loja) loja.statusFinanceiro = novo;
+  } else {
+    // Legado: assinatura por empresa.
+    await tx.request()
+      .input('id', mssql.VarChar, sub.EMPRESA_ID)
+      .input('s', mssql.VarChar, novo)
+      .query('UPDATE EMPRESAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
+    const emp = empresas.find((e) => e.id === sub.EMPRESA_ID);
+    if (emp) emp.statusFinanceiro = novo;
+  }
+}
+
+function revogarSessoesDaLoja(lojaId: string): void {
+  for (const [token, sessao] of sessions.entries()) {
+    if (sessao.tipo === 'loja' && sessao.lojaId === lojaId) {
+      sessions.delete(token);
+    }
+  }
 }
 
 function revogarSessoesDaEmpresa(empresaId: string): void {
