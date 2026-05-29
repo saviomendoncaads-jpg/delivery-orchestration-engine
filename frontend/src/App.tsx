@@ -4433,11 +4433,26 @@ export default function App() {
           )}
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={triggerQuickOrder}>Gerar Pedido</button>
-          <button className="btn btn-success" onClick={triggerQuickDelivery}>Entrega Rápida</button>
-          <button className="btn btn-danger" onClick={handleClearSimulation}>Limpar Dados</button>
+          {/* Hierarquia: 1 primária (Gerar Pedido), 1 secundária (Entrega Rápida),
+              destrutivo e logout rebaixados a ghost p/ não competir nem causar clique acidental. */}
+          <button className="btn btn-primary" onClick={triggerQuickOrder}>+ Gerar Pedido</button>
+          <button className="btn btn-secondary" onClick={triggerQuickDelivery}>Entrega Rápida</button>
+          <button
+            className="btn"
+            style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-thin)' }}
+            onClick={handleClearSimulation}
+            title="Apagar todos os dados da simulação"
+          >
+            Limpar Dados
+          </button>
           {!lojaVisualizada && (
-            <button className="btn" style={{ background: '#1f293d', color: 'var(--color-rose)', border: '1px solid rgba(244, 63, 94, 0.2)' }} onClick={handleLogout}>Sair</button>
+            <button
+              className="btn"
+              style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-thin)' }}
+              onClick={handleLogout}
+            >
+              Sair
+            </button>
           )}
         </div>
       </header>
@@ -5686,19 +5701,7 @@ export default function App() {
                 ? `${d.codigoVinculo.substring(0, 3)}-${d.codigoVinculo.substring(3)}`
                 : '---';
               return (
-                <div 
-                  key={d.id} 
-                  style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    padding: '0.75rem 1rem', 
-                    background: 'var(--bg-card)', 
-                    border: '1px solid var(--border-thin)', 
-                    borderRadius: '8px',
-                    fontSize: '0.85rem'
-                  }}
-                >
+                <div key={d.id} className="driver-card">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                     <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span 
