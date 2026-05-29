@@ -2907,8 +2907,8 @@ export default function App() {
         {/* Navigation Tabs — segmented control */}
         <div style={{ display: 'flex', gap: 'var(--space-1)', background: 'var(--bg-secondary)', padding: 'var(--space-1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-thin)', marginBottom: 'var(--space-6)' }}>
           {([
-            { id: 'operacional', label: 'Operacional (Empresas & Lojas)' },
-            { id: 'financeiro', label: 'Módulo Financeiro' },
+            { id: 'operacional', label: 'Gestão de Empresas & Lojas' },
+            { id: 'financeiro', label: 'Controle Financeiro & Cobrança (ERP)' },
           ] as const).map(tab => {
             const ativo = adminSubView === tab.id;
             return (
