@@ -341,10 +341,10 @@ async function inicializarBanco() {
       ALTER TABLE PLANOS ADD LIMITE_MOTORISTAS INT NULL;
     IF OBJECT_ID('PLANOS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('PLANOS') AND name='ATIVO')
       ALTER TABLE PLANOS ADD ATIVO BIT NOT NULL DEFAULT 1;
-    -- Schemas legados de PLANOS têm ATUALIZADO_EM NOT NULL sem default (o código não a
-    -- preenche). Dá um default p/ não quebrar o INSERT de plano.
-    IF OBJECT_ID('PLANOS') IS NOT NULL AND EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('PLANOS') AND name='ATUALIZADO_EM' AND default_object_id=0)
-      ALTER TABLE PLANOS ADD CONSTRAINT DF_PLANOS_ATUALIZADO_EM DEFAULT CONVERT(VARCHAR(100), SYSUTCDATETIME(), 126) FOR ATUALIZADO_EM;
+    -- Schemas legados de PLANOS têm ATUALIZADO_EM NOT NULL (o código não preenche essa
+    -- coluna). Torna nullable p/ não quebrar o INSERT de plano.
+    IF OBJECT_ID('PLANOS') IS NOT NULL AND EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('PLANOS') AND name='ATUALIZADO_EM' AND is_nullable=0)
+      ALTER TABLE PLANOS ALTER COLUMN ATUALIZADO_EM VARCHAR(100) NULL;
 
     -- Tabela WEBHOOK_EVENTS — fila durável de webhooks do gateway + idempotência
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='WEBHOOK_EVENTS' AND xtype='U')
