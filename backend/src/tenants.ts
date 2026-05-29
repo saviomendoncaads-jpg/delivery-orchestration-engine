@@ -11,6 +11,7 @@ import {
   salvarLoja,
   deletarLoja
 } from './database';
+import { criarAssinaturaComPrimeiraFatura } from './billing/subscriptionService';
 
 const TENANTS_FILE = path.join(__dirname, '..', 'tenants-data.json');
 
@@ -204,9 +205,13 @@ router.get('/empresas/:empresaId/lojas', (req: Request, res: Response) => {
 router.post('/empresas/:empresaId/lojas', async (req: Request, res: Response) => {
   const empresa = empresas.find(e => e.id === req.params.empresaId);
   if (!empresa) { res.status(404).json({ error: 'Empresa não encontrada' }); return; }
-  const { nome, cnpj, endereco, bairro, cidade, usuario, senha, recebePedidos } = req.body;
+  const { nome, cnpj, endereco, bairro, cidade, usuario, senha, recebePedidos, planoId, diaVencimento } = req.body;
   if (!nome || !usuario || !senha || !cnpj) {
     res.status(400).json({ error: 'Nome, CNPJ, usuário e senha são obrigatórios' });
+    return;
+  }
+  if (!planoId) {
+    res.status(400).json({ error: 'Plano de assinatura é obrigatório' });
     return;
   }
 
@@ -244,8 +249,28 @@ router.post('/empresas/:empresaId/lojas', async (req: Request, res: Response) =>
   try {
     await salvarLoja(loja);
     lojas.push(loja);
+
+    // Cobrança por loja: cria a assinatura ATIVA + 1ª fatura PENDENTE com o plano escolhido.
+    let assinatura;
+    try {
+      assinatura = await criarAssinaturaComPrimeiraFatura({
+        empresaId: loja.empresaId,
+        lojaId: loja.id,
+        planoId,
+        diaVencimento: diaVencimento ? Number(diaVencimento) : undefined,
+      });
+    } catch (subErr: any) {
+      // Loja foi criada, mas a assinatura falhou (ex.: plano inválido). Desfaz a loja
+      // para não deixar loja órfã sem assinatura, e reporta o erro.
+      await deletarLoja(loja.id);
+      const idx = lojas.findIndex(l => l.id === loja.id);
+      if (idx !== -1) lojas.splice(idx, 1);
+      res.status(400).json({ error: `Erro ao criar assinatura da loja: ${subErr.message}` });
+      return;
+    }
+
     const { senhaHash: _h, ...lojaPublica } = loja;
-    res.status(201).json(lojaPublica);
+    res.status(201).json({ ...lojaPublica, assinatura });
   } catch (err: any) {
     res.status(500).json({ error: 'Erro ao salvar loja no banco de dados', details: err.message });
   }

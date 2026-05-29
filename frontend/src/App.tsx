@@ -319,6 +319,7 @@ export default function App() {
   const [novaLojaBairro, setNovaLojaBairro] = useState('');
   const [novaLojaCidade, setNovaLojaCidade] = useState('');
   const [novaLojaRecebePedidos, setNovaLojaRecebePedidos] = useState(false);
+  const [novaLojaPlanoId, setNovaLojaPlanoId] = useState('');
 
   const [editingLoja, setEditingLoja] = useState<Loja | null>(null);
   const [editLojaNome, setEditLojaNome] = useState('');
@@ -840,6 +841,10 @@ export default function App() {
       alert('Nome, CNPJ, usuário e senha são obrigatórios');
       return;
     }
+    if (!novaLojaPlanoId) {
+      alert('Selecione o plano de assinatura da loja');
+      return;
+    }
     try {
       const res = await apiFetch(`${BACKEND_URL}/api/empresas/${empresaId}/lojas`, {
         method: 'POST',
@@ -851,7 +856,8 @@ export default function App() {
           endereco: novaLojaEndereco,
           bairro: novaLojaBairro,
           cidade: novaLojaCidade,
-          recebePedidos: novaLojaRecebePedidos
+          recebePedidos: novaLojaRecebePedidos,
+          planoId: novaLojaPlanoId
         })
       });
       if (!res.ok) {
@@ -866,6 +872,7 @@ export default function App() {
       setNovaLojaBairro('');
       setNovaLojaCidade('');
       setNovaLojaRecebePedidos(false);
+      setNovaLojaPlanoId('');
       setShowNovaLojaForm(null);
       carregarLojas(empresaId);
       carregarEmpresas();
@@ -3761,7 +3768,11 @@ export default function App() {
                         <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lojas / Redes</h4>
                         <button 
                           className="btn btn-success btn-small"
-                          onClick={() => setShowNovaLojaForm(isNovaLojaAberta ? null : empresa.id)}
+                          onClick={() => {
+                            const abrindo = !isNovaLojaAberta;
+                            setShowNovaLojaForm(abrindo ? empresa.id : null);
+                            if (abrindo && finPlanos.length === 0) carregarFinanceiroPlanos();
+                          }}
                         >
                           {isNovaLojaAberta ? 'Cancelar' : '+ Nova Loja'}
                         </button>
@@ -3810,11 +3821,27 @@ export default function App() {
                               <input 
                                 type="password" 
                                 className="form-input" 
-                                value={novaLojaSenha} 
-                                onChange={e => setNovaLojaSenha(e.target.value)} 
-                                placeholder="Senha da loja" 
-                                required 
+                                value={novaLojaSenha}
+                                onChange={e => setNovaLojaSenha(e.target.value)}
+                                placeholder="Senha da loja"
+                                required
                               />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Plano de Assinatura</label>
+                              <select
+                                className="form-input"
+                                value={novaLojaPlanoId}
+                                onChange={e => setNovaLojaPlanoId(e.target.value)}
+                                required
+                              >
+                                <option value="">Selecione o plano...</option>
+                                {finPlanos.filter(p => p.ativo !== false).map(p => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.nome} — R$ {Number(p.valorMensal).toFixed(2)}/mês
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Endereço</label>
