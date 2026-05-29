@@ -163,6 +163,7 @@ export interface Loja {
   ativo: boolean;
   criadoEm: string;
   recebePedidos?: boolean;
+  statusFinanceiro?: string;  // 'REGULAR' | 'INADIMPLENTE' | 'SUSPENSO' | 'CANCELADO' — billing por loja
 }
 
 export interface Sessao {

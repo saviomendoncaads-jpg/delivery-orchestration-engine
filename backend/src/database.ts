@@ -319,6 +319,14 @@ async function inicializarBanco() {
     IF OBJECT_ID('FATURAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('FATURAS') AND name='PROXIMA_ACAO_DUNNING')
       ALTER TABLE FATURAS ADD PROXIMA_ACAO_DUNNING VARCHAR(100) NULL;
 
+    -- ===== Cobrança por LOJA (modelo per-loja) — colunas aditivas =====
+    IF OBJECT_ID('ASSINATURAS_EMPRESAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('ASSINATURAS_EMPRESAS') AND name='LOJA_ID')
+      ALTER TABLE ASSINATURAS_EMPRESAS ADD LOJA_ID VARCHAR(50) NULL;
+    IF OBJECT_ID('FATURAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('FATURAS') AND name='LOJA_ID')
+      ALTER TABLE FATURAS ADD LOJA_ID VARCHAR(50) NULL;
+    IF OBJECT_ID('LOJAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id=OBJECT_ID('LOJAS') AND name='STATUS_FINANCEIRO')
+      ALTER TABLE LOJAS ADD STATUS_FINANCEIRO VARCHAR(50) NOT NULL DEFAULT 'REGULAR';
+
     -- Tabela WEBHOOK_EVENTS — fila durável de webhooks do gateway + idempotência
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='WEBHOOK_EVENTS' AND xtype='U')
     CREATE TABLE WEBHOOK_EVENTS (
@@ -788,7 +796,8 @@ export async function obterLojas(): Promise<Loja[]> {
       chaveAcesso: row.CHAVE_ACESSO,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
       criadoEm: row.CRIADO_EM,
-      recebePedidos: row.RECEBE_PEDIDOS === 1 || row.RECEBE_PEDIDOS === true
+      recebePedidos: row.RECEBE_PEDIDOS === 1 || row.RECEBE_PEDIDOS === true,
+      statusFinanceiro: row.STATUS_FINANCEIRO || 'REGULAR'
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter lojas:', err);
@@ -815,10 +824,11 @@ export async function salvarLoja(l: Loja) {
           SENHA_HASH = @senhaHash,
           CHAVE_ACESSO = @chaveAcesso,
           ATIVO = @ativo,
-          RECEBE_PEDIDOS = @recebePedidos
+          RECEBE_PEDIDOS = @recebePedidos,
+          STATUS_FINANCEIRO = @statusFinanceiro
       WHEN NOT MATCHED THEN
-        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, BAIRRO, CIDADE, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM, RECEBE_PEDIDOS)
-        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @bairro, @cidade, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm, @recebePedidos);
+        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, BAIRRO, CIDADE, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM, RECEBE_PEDIDOS, STATUS_FINANCEIRO)
+        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @bairro, @cidade, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm, @recebePedidos, @statusFinanceiro);
     `;
     await pool.request()
       .input('id', mssql.VarChar, l.id)
@@ -834,6 +844,7 @@ export async function salvarLoja(l: Loja) {
       .input('ativo', mssql.Bit, l.ativo ? 1 : 0)
       .input('criadoEm', mssql.VarChar, l.criadoEm)
       .input('recebePedidos', mssql.Bit, l.recebePedidos ? 1 : 0)
+      .input('statusFinanceiro', mssql.VarChar, l.statusFinanceiro || 'REGULAR')
       .query(query);
   } catch (err) {
     console.error(`[Banco de Dados] Erro ao salvar loja ${l.id}:`, err);
