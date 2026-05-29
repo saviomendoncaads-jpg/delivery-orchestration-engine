@@ -5,6 +5,7 @@ import { pool } from './database';
 import { verificarAdmin, sessions } from './auth';
 import { empresas, lojas } from './tenants';
 import { getGateway } from './billing/gatewayFactory';
+import { appendLedger } from './billing/ledgerService';
 
 const router = Router();
 
@@ -378,7 +379,7 @@ router.post('/cobrar-manual', verificarAdmin, async (req: Request, res: Response
     const gateway = getGateway();
     const cobranca = await gateway.criarCobranca({
       empresaId,
-      faturaId: id,
+      faturaId: String(id),
       valor: Number(valor),
       vencimento: dataVenc.toISOString(),
       metodo: 'PIX',
@@ -403,6 +404,18 @@ router.post('/cobrar-manual', verificarAdmin, async (req: Request, res: Response
         INSERT INTO FATURAS (ID, EMPRESA_ID, VALOR_BRUTO, VALOR_DESCONTO, STATUS, DATA_EMISSAO, DATA_VENCIMENTO, REFERENCIA_MES_ANO, BOLETO_URL, PIX_COPIA_COLA, GATEWAY_FATURA_ID, CRIADO_EM)
         VALUES (@id, @empId, @valor, 0.00, @status, @emissao, @venc, @ref, @boleto, @pix, @gwId, @criado)
       `);
+
+    // Trilha de auditoria: emissão da fatura (contas a receber aberto).
+    await appendLedger({
+      empresaId,
+      faturaId: String(id),
+      tipo: 'ABERTURA',
+      valor: Number(valor),
+      origem: 'MANUAL_ADMIN',
+      referenciaExterna: cobranca.gatewayFaturaId,
+      metadados: { descricao: descricao || null, vencimento: dataVenc.toISOString() },
+      criadoPor: 'ADMIN',
+    });
 
     console.log(`[Financeiro] Fatura manual criada com sucesso para ${emp.nome}. Valor: R$ ${valor}`);
 
@@ -440,48 +453,71 @@ router.put('/faturas/:id/baixa-manual', verificarAdmin, async (req: Request, res
 
     const pgto = dataPagamento || new Date().toISOString();
 
-    // 1. Obter a fatura para validar existência e valor
-    const fatRes = await pool.request()
-      .input('id', mssql.VarChar, id)
-      .query('SELECT * FROM FATURAS WHERE ID = @id');
+    // Operação atômica: SELECT com lock + baixa + histórico + ledger numa única
+    // transação. O UPDLOCK/HOLDLOCK evita dupla-baixa em concorrência (dois
+    // operadores ou webhook + conciliação manual no mesmo instante).
+    const tx = new mssql.Transaction(pool);
+    await tx.begin();
+    try {
+      const fatRes = await tx.request()
+        .input('id', mssql.VarChar, id)
+        .query('SELECT * FROM FATURAS WITH (UPDLOCK, HOLDLOCK) WHERE ID = @id');
 
-    if (fatRes.recordset.length === 0) {
-      res.status(404).json({ error: 'Fatura não encontrada.' });
-      return;
+      if (fatRes.recordset.length === 0) {
+        await tx.rollback();
+        res.status(404).json({ error: 'Fatura não encontrada.' });
+        return;
+      }
+
+      const fat = fatRes.recordset[0];
+      if (fat.STATUS === 'PAGA') {
+        await tx.rollback();
+        res.status(400).json({ error: 'Esta fatura já está paga.' });
+        return;
+      }
+
+      const valorLiquido = Number(fat.VALOR_BRUTO) - Number(fat.VALOR_DESCONTO);
+
+      // 1. Dar baixa na fatura (status = 'PAGA')
+      await tx.request()
+        .input('id', mssql.VarChar, id)
+        .input('pgto', mssql.VarChar, pgto)
+        .query("UPDATE FATURAS SET STATUS = 'PAGA', DATA_PAGAMENTO = @pgto WHERE ID = @id");
+
+      // 2. Registrar no histórico de pagamentos (view operacional)
+      const histId = `pay-${crypto.randomUUID().substring(0, 8)}`;
+      const logs = JSON.stringify({ comprovanteReferencia, observacoes, tipoOperacao: 'ConciliacaoManualAdmin' });
+      await tx.request()
+        .input('id', mssql.VarChar, histId)
+        .input('fatId', mssql.VarChar, id)
+        .input('metodo', mssql.VarChar, 'CONCILIACAO_MANUAL')
+        .input('valor', mssql.Decimal(10, 2), valorLiquido)
+        .input('data', mssql.VarChar, pgto)
+        .input('status', mssql.VarChar, 'SUCESSO')
+        .input('log', mssql.NVarChar, logs)
+        .query(`
+          INSERT INTO HISTORICO_PAGAMENTOS (ID, FATURA_ID, METODO_PAGAMENTO, VALOR_PAGO, DATA_TRANSACAO, STATUS_TRANSACAO, LOG_TRANSACAO)
+          VALUES (@id, @fatId, @metodo, @valor, @data, @status, @log)
+        `);
+
+      // 3. Ledger imutável (verdade contábil): crédito de pagamento
+      await appendLedger({
+        empresaId: fat.EMPRESA_ID,
+        assinaturaId: fat.ASSINATURAS_EMPRESAS_ID ?? undefined,
+        faturaId: String(id),
+        tipo: 'CREDITO_PAGAMENTO',
+        valor: valorLiquido,
+        origem: 'MANUAL_ADMIN',
+        referenciaExterna: comprovanteReferencia ?? undefined,
+        metadados: { observacoes: observacoes ?? null, metodo: 'CONCILIACAO_MANUAL' },
+        criadoPor: 'ADMIN',
+      }, tx);
+
+      await tx.commit();
+    } catch (txErr) {
+      await tx.rollback();
+      throw txErr;
     }
-
-    const fat = fatRes.recordset[0];
-    if (fat.STATUS === 'PAGA') {
-      res.status(400).json({ error: 'Esta fatura já está paga.' });
-      return;
-    }
-
-    // 2. Dar baixa na fatura (status = 'PAGA')
-    await pool.request()
-      .input('id', mssql.VarChar, id)
-      .input('pgto', mssql.VarChar, pgto)
-      .query("UPDATE FATURAS SET STATUS = 'PAGA', DATA_PAGAMENTO = @pgto WHERE ID = @id");
-
-    // 3. Registrar no histórico de pagamentos
-    const histId = `pay-${crypto.randomUUID().substring(0, 8)}`;
-    const logs = JSON.stringify({
-      comprovanteReferencia,
-      observacoes,
-      tipoOperacao: 'ConciliacaoManualAdmin'
-    });
-
-    await pool.request()
-      .input('id', mssql.VarChar, histId)
-      .input('fatId', mssql.VarChar, id)
-      .input('metodo', mssql.VarChar, 'CONCILIACAO_MANUAL')
-      .input('valor', mssql.Decimal(10, 2), Number(fat.VALOR_BRUTO) - Number(fat.VALOR_DESCONTO))
-      .input('data', mssql.VarChar, pgto)
-      .input('status', mssql.VarChar, 'SUCESSO')
-      .input('log', mssql.NVarChar, logs)
-      .query(`
-        INSERT INTO HISTORICO_PAGAMENTOS (ID, FATURA_ID, METODO_PAGAMENTO, VALOR_PAGO, DATA_TRANSACAO, STATUS_TRANSACAO, LOG_TRANSACAO)
-        VALUES (@id, @fatId, @metodo, @valor, @data, @status, @log)
-      `);
 
     console.log(`[Financeiro] Baixa manual registrada para a fatura ${id}.`);
 
@@ -887,6 +923,17 @@ router.put('/faturas/:id/contestar', verificarAdmin, async (req: Request, res: R
       .input('log', mssql.NVarChar, JSON.stringify({ motivo, tipoOperacao: 'CONTESTACAO' }))
       .query("INSERT INTO HISTORICO_PAGAMENTOS (ID, FATURA_ID, METODO_PAGAMENTO, VALOR_PAGO, DATA_TRANSACAO, STATUS_TRANSACAO, LOG_TRANSACAO) VALUES (@id, @fatId, 'CONTESTACAO', @valor, @data, 'PENDENTE', @log)");
 
+    // Trilha de auditoria: contestação (sem movimento de saldo).
+    await appendLedger({
+      empresaId: fatRes.recordset[0].EMPRESA_ID,
+      faturaId: String(id),
+      tipo: 'AJUSTE',
+      valor: 0,
+      origem: 'MANUAL_ADMIN',
+      metadados: { evento: 'CONTESTACAO', motivo: motivo ?? null },
+      criadoPor: 'ADMIN',
+    });
+
     console.log(`[Financeiro] Fatura ${id} contestada.`);
     res.json({ success: true, message: 'Fatura marcada como contestada.' });
   } catch (err: any) {
@@ -915,6 +962,17 @@ router.put('/faturas/:id/cancelar', verificarAdmin, async (req: Request, res: Re
     await pool.request()
       .input('id', mssql.VarChar, id)
       .query("UPDATE FATURAS SET STATUS = 'CANCELADA' WHERE ID = @id");
+
+    // Trilha de auditoria: cancelamento (baixa do contas a receber sem pagamento).
+    await appendLedger({
+      empresaId: fatRes.recordset[0].EMPRESA_ID,
+      faturaId: String(id),
+      tipo: 'CANCELAMENTO',
+      valor: 0,
+      origem: 'MANUAL_ADMIN',
+      metadados: { valorOriginal: Number(fatRes.recordset[0].VALOR_BRUTO) - Number(fatRes.recordset[0].VALOR_DESCONTO) },
+      criadoPor: 'ADMIN',
+    });
 
     // Reavaliar inadimplência
     await rotinaVerificacaoInadimplencia();
