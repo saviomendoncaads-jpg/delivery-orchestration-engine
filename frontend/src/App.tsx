@@ -2904,42 +2904,36 @@ export default function App() {
           </div>
         </header>
 
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.4rem', borderRadius: '8px', border: '1px solid var(--border-thin)', marginBottom: '1.5rem' }}>
-          <button
-            type="button"
-            className="btn btn-small"
-            style={{
-              flex: 1,
-              background: adminSubView === 'operacional' ? 'linear-gradient(135deg, var(--color-purple), var(--color-pink))' : 'transparent',
-              color: '#fff',
-              border: 'none',
-              fontWeight: 600,
-              padding: '0.6rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-            onClick={() => setAdminSubView('operacional')}
-          >
-            Operacional (Empresas & Lojas)
-          </button>
-          <button
-            type="button"
-            className="btn btn-small"
-            style={{
-              flex: 1,
-              background: adminSubView === 'financeiro' ? 'linear-gradient(135deg, var(--color-cyan), var(--color-blue))' : 'transparent',
-              color: adminSubView === 'financeiro' ? '#000' : '#fff',
-              border: 'none',
-              fontWeight: 600,
-              padding: '0.6rem 1rem',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-            onClick={() => setAdminSubView('financeiro')}
-          >
-            Módulo Financeiro
-          </button>
+        {/* Navigation Tabs — segmented control */}
+        <div style={{ display: 'flex', gap: 'var(--space-1)', background: 'var(--bg-secondary)', padding: 'var(--space-1)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-thin)', marginBottom: 'var(--space-6)' }}>
+          {([
+            { id: 'operacional', label: 'Operacional (Empresas & Lojas)' },
+            { id: 'financeiro', label: 'Módulo Financeiro' },
+          ] as const).map(tab => {
+            const ativo = adminSubView === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setAdminSubView(tab.id)}
+                style={{
+                  flex: 1,
+                  background: ativo ? 'var(--bg-card)' : 'transparent',
+                  color: ativo ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: 'var(--text-sm)',
+                  padding: '0.6rem 1rem',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: ativo ? 'var(--shadow-sm)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease, color 0.15s ease',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {adminSubView === 'financeiro' ? (
