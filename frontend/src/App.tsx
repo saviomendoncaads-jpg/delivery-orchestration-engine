@@ -344,9 +344,9 @@ export default function App() {
     totalFaturasEmAberto: number;
     valorEmAberto: number;
     taxaInadimplencia: number;
-    empresasAtivas: number;
-    empresasInadimplentes: number;
-    totalEmpresas: number;
+    lojasAtivas: number;
+    lojasInadimplentes: number;
+    totalLojas: number;
     faturamentoBrutoMes: number;
     faturamentoLiquidoMes: number;
   } | null>(null);
@@ -2970,7 +2970,7 @@ export default function App() {
                   {finDashboard?.taxaInadimplencia || 0}%
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                  {finDashboard?.empresasInadimplentes || 0} de {finDashboard?.totalEmpresas || 0} empresas atrasadas
+                  {finDashboard?.lojasInadimplentes || 0} de {finDashboard?.totalLojas || 0} lojas atrasadas
                 </span>
               </div>
               <div className="report-kpi-card" style={{ borderLeft: '4px solid var(--color-emerald)' }}>

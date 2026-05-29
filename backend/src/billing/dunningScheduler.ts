@@ -119,15 +119,16 @@ async function aplicarEstagio(estagio: Estagio, fat: any): Promise<void> {
       break;
 
     case 'SUSPENSAO_D7': {
-      // Via state machine quando há assinatura (deriva empresa + revoga sessões).
-      // Fallback para suspensão a nível de empresa em faturas avulsas (sem assinatura).
+      // Via state machine quando há assinatura (deriva status da loja + revoga sessões da loja).
+      // Fallback para faturas avulsas sem assinatura: suspende a loja (ou a empresa, se legado).
       let suspensoViaSM = false;
       if (fat.ASSINATURAS_EMPRESAS_ID) {
         const r = await transicionar(fat.ASSINATURAS_EMPRESAS_ID, 'SUSPENDER');
         suspensoViaSM = r.ok;
       }
       if (!suspensoViaSM) {
-        await suspenderEmpresa(fat.EMPRESA_ID, fat.ASSINATURAS_EMPRESAS_ID);
+        if (fat.LOJA_ID) await suspenderLoja(fat.LOJA_ID, fat.EMPRESA_ID);
+        else await suspenderEmpresa(fat.EMPRESA_ID, fat.ASSINATURAS_EMPRESAS_ID);
       }
       notificar(fat, 'SUSPENSAO_D7');
       break;
@@ -156,7 +157,36 @@ async function garantirCobrancaGerada(fat: any): Promise<void> {
   console.log(`[Dunning] Cobrança gerada p/ fatura ${fat.ID} (${cobranca.gatewayFaturaId}).`);
 }
 
-/** Suspende a empresa (grace period esgotado): bloqueia painel + revoga sessões. */
+/** Suspende a LOJA (grace period esgotado): bloqueia painel da loja + revoga suas sessões. */
+async function suspenderLoja(lojaId: string, empresaId: string): Promise<void> {
+  const loja = lojas.find((l) => l.id === lojaId);
+  if (!loja || loja.statusFinanceiro === 'SUSPENSO' || loja.statusFinanceiro === 'CANCELADO') return;
+
+  await pool.request()
+    .input('id', mssql.VarChar, lojaId)
+    .input('s', mssql.VarChar, 'SUSPENSO')
+    .query('UPDATE LOJAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
+  loja.statusFinanceiro = 'SUSPENSO';
+
+  for (const [token, sessao] of sessions.entries()) {
+    if (sessao.tipo === 'loja' && sessao.lojaId === lojaId) {
+      sessions.delete(token);
+    }
+  }
+
+  await appendLedger({
+    empresaId,
+    tipo: 'SUSPENSAO',
+    valor: 0,
+    origem: 'DUNNING',
+    metadados: { motivo: 'grace period D+7 esgotado', lojaId },
+    criadoPor: 'SYSTEM',
+  });
+
+  console.log(`[Dunning] Loja ${loja.nome} SUSPENSA por inadimplência (D+7).`);
+}
+
+/** Suspende a empresa (legado, assinatura sem LOJA_ID): bloqueia painel + revoga sessões. */
 async function suspenderEmpresa(empresaId: string, assinaturaId?: string): Promise<void> {
   const emp = empresas.find((e) => e.id === empresaId);
   // Idempotente: não re-suspende quem já está SUSPENSO/CANCELADO.

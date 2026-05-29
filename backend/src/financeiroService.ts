@@ -733,11 +733,11 @@ router.get('/dashboard', verificarAdmin, async (req: Request, res: Response) => 
     const totalFaturasEmAberto = abertoRes.recordset[0]?.Qtd || 0;
     const valorEmAberto = Number(abertoRes.recordset[0]?.Valor || 0);
 
-    // Taxa de inadimplência (empresas)
-    const totalEmpresas = empresas.length;
-    const empresasInadimplentes = empresas.filter(e => e.statusFinanceiro === 'INADIMPLENTE').length;
-    const empresasAtivas = empresas.filter(e => e.ativo).length;
-    const taxaInadimplencia = totalEmpresas > 0 ? Number(((empresasInadimplentes / totalEmpresas) * 100).toFixed(2)) : 0;
+    // Taxa de inadimplência por LOJA (cobrança por loja). Conta lojas INADIMPLENTE ou SUSPENSO.
+    const totalLojas = lojas.length;
+    const lojasInadimplentes = lojas.filter(l => l.statusFinanceiro === 'INADIMPLENTE' || l.statusFinanceiro === 'SUSPENSO').length;
+    const lojasAtivas = lojas.filter(l => l.ativo).length;
+    const taxaInadimplencia = totalLojas > 0 ? Number(((lojasInadimplentes / totalLojas) * 100).toFixed(2)) : 0;
 
     // Faturamento do mês atual
     const mesAtual = `${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`;
@@ -762,9 +762,9 @@ router.get('/dashboard', verificarAdmin, async (req: Request, res: Response) => 
       totalFaturasEmAberto,
       valorEmAberto,
       taxaInadimplencia,
-      empresasAtivas,
-      empresasInadimplentes,
-      totalEmpresas,
+      lojasAtivas,
+      lojasInadimplentes,
+      totalLojas,
       faturamentoBrutoMes,
       faturamentoLiquidoMes
     });
