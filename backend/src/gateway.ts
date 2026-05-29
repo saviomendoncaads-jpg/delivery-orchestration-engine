@@ -320,7 +320,7 @@ router.post('/deliveries', async (req: Request, res: Response) => {
     lojaId,
     nomeLoja,
     nomeEmpresa,
-    tipoComanda: req.body.tipoComanda || (recebePedidos ? 'pedido' : 'entrega')
+    tipoComanda: req.body.tipoComanda ?? 'entrega'
   };
 
   deliveries.set(id, newDelivery);

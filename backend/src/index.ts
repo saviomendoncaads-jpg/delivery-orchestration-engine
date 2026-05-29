@@ -12,6 +12,7 @@ import { monitorAgent } from './monitor';
 import { integratorAgent } from './integrator';
 import { conectarBanco, salvarMotorista } from './database';
 import { Entrega, Motorista } from './types';
+import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -28,6 +29,9 @@ app.use('/api', tenantsRouter);
 
 // Roteador do assistente virtual WhatsApp
 app.use('/api/whatsapp', whatsappRouter);
+
+// Roteador do Módulo Financeiro (admin)
+app.use('/api/admin/financeiro', financeiroRouter);
 
 // Monta o Roteador de API do Gateway Ingress
 app.use('/api', apiRouter);
@@ -343,6 +347,9 @@ async function startServer() {
   
   // Carrega entregas do banco de dados para a memória
   await carregarEntregasDoBanco();
+
+  // Inicializa o módulo financeiro (seed + rotina de inadimplência)
+  await inicializarFinanceiro();
 
   httpServer.listen(port, () => {
     console.log(`==================================================`);

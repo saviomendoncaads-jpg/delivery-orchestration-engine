@@ -145,6 +145,7 @@ export interface Empresa {
   telefone?: string;
   email?: string;
   ativo: boolean;
+  statusFinanceiro?: string;  // 'REGULAR' | 'INADIMPLENTE' | 'SUSPENSO' | 'CANCELADO'
   criadoEm: string;
 }
 

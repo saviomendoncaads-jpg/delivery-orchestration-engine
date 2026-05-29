@@ -221,10 +221,89 @@ async function inicializarBanco() {
     BEGIN
       CREATE UNIQUE INDEX UIX_LOJAS_CNPJ ON LOJAS(CNPJ) WHERE CNPJ IS NOT NULL;
     END
+
+    -- ====== MÓDULO FINANCEIRO ======
+
+    -- Coluna STATUS_FINANCEIRO na tabela EMPRESAS
+    IF OBJECT_ID('EMPRESAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EMPRESAS') AND name = 'STATUS_FINANCEIRO')
+    BEGIN
+      ALTER TABLE EMPRESAS ADD STATUS_FINANCEIRO VARCHAR(50) NOT NULL DEFAULT 'REGULAR';
+    END
+
+    -- Tabela PLANOS
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PLANOS' AND xtype='U')
+    CREATE TABLE PLANOS (
+      ID VARCHAR(50) PRIMARY KEY,
+      NOME NVARCHAR(255) NOT NULL,
+      DESCRICAO NVARCHAR(MAX) NULL,
+      VALOR_MENSAL DECIMAL(10, 2) NOT NULL,
+      LIMITE_ENTREGAS_MES INT NULL,
+      LIMITE_LOJAS INT NULL,
+      LIMITE_MOTORISTAS INT NULL,
+      ATIVO BIT NOT NULL DEFAULT 1,
+      CRIADO_EM VARCHAR(100) NOT NULL
+    );
+
+    -- Tabela ASSINATURAS_EMPRESAS
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ASSINATURAS_EMPRESAS' AND xtype='U')
+    CREATE TABLE ASSINATURAS_EMPRESAS (
+      ID VARCHAR(50) PRIMARY KEY,
+      EMPRESA_ID VARCHAR(50) NOT NULL FOREIGN KEY REFERENCES EMPRESAS(ID),
+      PLANO_ID VARCHAR(50) NOT NULL FOREIGN KEY REFERENCES PLANOS(ID),
+      STATUS VARCHAR(50) NOT NULL DEFAULT 'ATIVA',
+      DIA_VENCIMENTO INT NOT NULL DEFAULT 10,
+      VALOR_PERSONALIZADO DECIMAL(10, 2) NULL,
+      PROXIMO_FATURAMENTO VARCHAR(100) NULL,
+      CRIADO_EM VARCHAR(100) NOT NULL,
+      CANCELADO_EM VARCHAR(100) NULL
+    );
+
+    -- Tabela FATURAS
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='FATURAS' AND xtype='U')
+    CREATE TABLE FATURAS (
+      ID VARCHAR(50) PRIMARY KEY,
+      EMPRESA_ID VARCHAR(50) NOT NULL FOREIGN KEY REFERENCES EMPRESAS(ID),
+      ASSINATURAS_EMPRESAS_ID VARCHAR(50) NULL,
+      VALOR_BRUTO DECIMAL(10, 2) NOT NULL,
+      VALOR_DESCONTO DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+      STATUS VARCHAR(50) NOT NULL DEFAULT 'PENDENTE',
+      DATA_EMISSAO VARCHAR(100) NOT NULL,
+      DATA_VENCIMENTO VARCHAR(100) NOT NULL,
+      DATA_PAGAMENTO VARCHAR(100) NULL,
+      REFERENCIA_MES_ANO VARCHAR(20) NOT NULL,
+      GATEWAY_FATURA_ID VARCHAR(200) NULL,
+      BOLETO_URL NVARCHAR(500) NULL,
+      PIX_COPIA_COLA NVARCHAR(500) NULL,
+      CRIADO_EM VARCHAR(100) NOT NULL
+    );
+
+    -- Tabela HISTORICO_PAGAMENTOS
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='HISTORICO_PAGAMENTOS' AND xtype='U')
+    CREATE TABLE HISTORICO_PAGAMENTOS (
+      ID VARCHAR(50) PRIMARY KEY,
+      FATURA_ID VARCHAR(50) NOT NULL,
+      METODO_PAGAMENTO VARCHAR(100) NOT NULL,
+      VALOR_PAGO DECIMAL(10, 2) NOT NULL,
+      DATA_TRANSACAO VARCHAR(100) NOT NULL,
+      STATUS_TRANSACAO VARCHAR(50) NOT NULL,
+      GATEWAY_TRANSACAO_ID VARCHAR(200) NULL,
+      LOG_TRANSACAO NVARCHAR(MAX) NULL
+    );
+
+    -- Tabela CONFIGURACOES_COBRANCA
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='CONFIGURACOES_COBRANCA' AND xtype='U')
+    CREATE TABLE CONFIGURACOES_COBRANCA (
+      ID VARCHAR(50) PRIMARY KEY DEFAULT 'default',
+      DIAS_CARENCIA_BLOQUEIO INT NOT NULL DEFAULT 5,
+      MULTA_PERCENTUAL DECIMAL(5, 2) NOT NULL DEFAULT 2.00,
+      JUROS_MES_PERCENTUAL DECIMAL(5, 2) NOT NULL DEFAULT 1.00,
+      EMAIL_NOTIFICACAO_DIAS_ANTES INT NOT NULL DEFAULT 3,
+      WHATSAPP_NOTIFICACAO_DIAS_ATRASO INT NOT NULL DEFAULT 2
+    );
   `;
   try {
     await pool.request().query(query);
-    console.log('[Banco de Dados] Tabelas "ENTREGAS", "LOGS_EVENTOS", "ADMINISTRADORES", "MOTORISTAS", "EMPRESAS", "LOJAS", "TIPOS_VEICULOS" e "PRODUTOS" verificadas/criadas com sucesso.');
+    console.log('[Banco de Dados] Tabelas "ENTREGAS", "LOGS_EVENTOS", "ADMINISTRADORES", "MOTORISTAS", "EMPRESAS", "LOJAS", "TIPOS_VEICULOS", "PRODUTOS" e tabelas financeiras verificadas/criadas com sucesso.');
     
     // Seed dos tipos de veículos padrão
     const vtCount = await pool.request().query('SELECT COUNT(*) as qtd FROM TIPOS_VEICULOS');
@@ -276,6 +355,38 @@ async function inicializarBanco() {
         .input('senhaHash', mssql.VarChar, hash)
         .query('INSERT INTO ADMINISTRADORES (USUARIO, SENHA_HASH) VALUES (@usuario, @senhaHash)');
       console.log('[Banco de Dados] Administrador padrão "admin" cadastrado no banco de dados com a senha criptografada.');
+    }
+
+    // Seed dos planos padrão
+    const planosCount = await pool.request().query('SELECT COUNT(*) as qtd FROM PLANOS');
+    if (planosCount.recordset[0].qtd === 0) {
+      const agora = new Date().toISOString();
+      const planos = [
+        { id: 'bronze', nome: 'Bronze', descricao: 'Plano inicial para pequenas operações. Até 200 entregas/mês, 2 lojas e 5 motoristas.', valor: 149.00, limEntregas: 200, limLojas: 2, limMotoristas: 5 },
+        { id: 'silver', nome: 'Silver', descricao: 'Plano intermediário. Até 1000 entregas/mês, 5 lojas e 15 motoristas.', valor: 299.00, limEntregas: 1000, limLojas: 5, limMotoristas: 15 },
+        { id: 'gold', nome: 'Gold', descricao: 'Plano avançado. Até 5000 entregas/mês, 20 lojas e 50 motoristas.', valor: 599.00, limEntregas: 5000, limLojas: 20, limMotoristas: 50 },
+        { id: 'enterprise', nome: 'Enterprise', descricao: 'Plano personalizado com recursos ilimitados e suporte dedicado.', valor: 1299.00, limEntregas: null, limLojas: null, limMotoristas: null }
+      ];
+      for (const p of planos) {
+        await pool.request()
+          .input('id', mssql.VarChar, p.id)
+          .input('nome', mssql.NVarChar, p.nome)
+          .input('desc', mssql.NVarChar, p.descricao)
+          .input('valor', mssql.Decimal(10, 2), p.valor)
+          .input('limE', mssql.Int, p.limEntregas)
+          .input('limL', mssql.Int, p.limLojas)
+          .input('limM', mssql.Int, p.limMotoristas)
+          .input('criado', mssql.VarChar, agora)
+          .query('INSERT INTO PLANOS (ID, NOME, DESCRICAO, VALOR_MENSAL, LIMITE_ENTREGAS_MES, LIMITE_LOJAS, LIMITE_MOTORISTAS, ATIVO, CRIADO_EM) VALUES (@id, @nome, @desc, @valor, @limE, @limL, @limM, 1, @criado)');
+      }
+      console.log('[Banco de Dados] Planos padrão cadastrados com sucesso.');
+    }
+
+    // Seed das configurações de cobrança padrão
+    const configCount = await pool.request().query('SELECT COUNT(*) as qtd FROM CONFIGURACOES_COBRANCA');
+    if (configCount.recordset[0].qtd === 0) {
+      await pool.request().query(`INSERT INTO CONFIGURACOES_COBRANCA (ID, DIAS_CARENCIA_BLOQUEIO, MULTA_PERCENTUAL, JUROS_MES_PERCENTUAL, EMAIL_NOTIFICACAO_DIAS_ANTES, WHATSAPP_NOTIFICACAO_DIAS_ATRASO) VALUES ('default', 5, 2.00, 1.00, 3, 2)`);
+      console.log('[Banco de Dados] Configurações de cobrança padrão cadastradas com sucesso.');
     }
   } catch (err) {
     console.error('[Banco de Dados] Erro ao inicializar tabelas:', err);
@@ -534,6 +645,7 @@ export async function obterEmpresas(): Promise<Empresa[]> {
       telefone: row.TELEFONE || undefined,
       email: row.EMAIL || undefined,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
+      statusFinanceiro: row.STATUS_FINANCEIRO || 'REGULAR',
       criadoEm: row.CRIADO_EM
     }));
   } catch (err) {
@@ -555,10 +667,11 @@ export async function salvarEmpresa(e: Empresa) {
           CNPJ = @cnpj,
           TELEFONE = @telefone,
           EMAIL = @email,
-          ATIVO = @ativo
+          ATIVO = @ativo,
+          STATUS_FINANCEIRO = @statusFinanceiro
       WHEN NOT MATCHED THEN
-        INSERT (ID, NOME, CNPJ, TELEFONE, EMAIL, ATIVO, CRIADO_EM)
-        VALUES (@id, @nome, @cnpj, @telefone, @email, @ativo, @criadoEm);
+        INSERT (ID, NOME, CNPJ, TELEFONE, EMAIL, ATIVO, STATUS_FINANCEIRO, CRIADO_EM)
+        VALUES (@id, @nome, @cnpj, @telefone, @email, @ativo, @statusFinanceiro, @criadoEm);
     `;
     await pool.request()
       .input('id', mssql.VarChar, e.id)
@@ -567,6 +680,7 @@ export async function salvarEmpresa(e: Empresa) {
       .input('telefone', mssql.VarChar, e.telefone || null)
       .input('email', mssql.VarChar, e.email || null)
       .input('ativo', mssql.Bit, e.ativo ? 1 : 0)
+      .input('statusFinanceiro', mssql.VarChar, e.statusFinanceiro || 'REGULAR')
       .input('criadoEm', mssql.VarChar, e.criadoEm)
       .query(query);
   } catch (err) {

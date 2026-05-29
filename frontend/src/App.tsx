@@ -333,6 +333,66 @@ export default function App() {
   // Loja sendo visualizada pelo Admin Master
   const [lojaVisualizada, setLojaVisualizada] = useState<{ id: string; nome: string; nomeEmpresa: string } | null>(null);
 
+  // --- ESTADOS DO MÓDULO FINANCEIRO ---
+  const [adminSubView, setAdminSubView] = useState<'operacional' | 'financeiro'>('operacional');
+  const [finSubTab, setFinSubTab] = useState<'faturas' | 'relatorios' | 'planos_config'>('faturas');
+  
+  const [finDashboard, setFinDashboard] = useState<{
+    mrrAtual: number;
+    mrrProjetado: number;
+    totalFaturasEmAberto: number;
+    valorEmAberto: number;
+    taxaInadimplencia: number;
+    empresasAtivas: number;
+    empresasInadimplentes: number;
+    totalEmpresas: number;
+    faturamentoBrutoMes: number;
+    faturamentoLiquidoMes: number;
+  } | null>(null);
+
+  const [finFaturas, setFinFaturas] = useState<any[]>([]);
+  const [finPaginaAtual, setFinPaginaAtual] = useState(1);
+  const [finTotalPaginas, setFinTotalPaginas] = useState(1);
+  const [finFaturasFiltros, setFinFaturasFiltros] = useState({
+    status: '',
+    empresaId: '',
+    dataInicio: '',
+    dataFim: '',
+    limit: 10
+  });
+
+  const [finRelFaturamento, setFinRelFaturamento] = useState<any[]>([]);
+  const [finRelInadimplencia, setFinRelInadimplencia] = useState<any[]>([]);
+  const [finRelChurn, setFinRelChurn] = useState<any[]>([]);
+  const [finRelPrevisibilidade, setFinRelPrevisibilidade] = useState<any[]>([]);
+  const [finConfiguracoes, setFinConfiguracoes] = useState<any>(null);
+  const [finAssinaturas, setFinAssinaturas] = useState<any[]>([]);
+  const [finPlanos, setFinPlanos] = useState<any[]>([]);
+
+  // Modais e formulários
+  const [showCobrarManualForm, setShowCobrarManualForm] = useState(false);
+  const [manualCobrarEmpresaId, setManualCobrarEmpresaId] = useState('');
+  const [manualCobrarValor, setManualCobrarValor] = useState('');
+  const [manualCobrarDescricao, setManualCobrarDescricao] = useState('');
+  const [manualCobrarVencimento, setManualCobrarVencimento] = useState('');
+  const [manualCobrarError, setManualCobrarError] = useState<string | null>(null);
+
+  const [showBaixaManualForm, setShowBaixaManualForm] = useState<string | null>(null); // faturaId
+  const [baixaManualComprovante, setBaixaManualComprovante] = useState('');
+  const [baixaManualObservacoes, setBaixaManualObservacoes] = useState('');
+
+  const [showContestarForm, setShowContestarForm] = useState<string | null>(null); // faturaId
+  const [contestarMotivo, setContestarMotivo] = useState('');
+
+  const [showPlanoForm, setShowPlanoForm] = useState<any>(null); // null ou plano
+  const [planoNome, setPlanoNome] = useState('');
+  const [planoDescricao, setPlanoDescricao] = useState('');
+  const [planoValorMensal, setPlanoValorMensal] = useState('');
+  const [planoLimiteEntregas, setPlanoLimiteEntregas] = useState('');
+  const [planoLimiteLojas, setPlanoLimiteLojas] = useState('');
+  const [planoLimiteMotoristas, setPlanoLimiteMotoristas] = useState('');
+  const [planoError, setPlanoError] = useState<string | null>(null);
+
   // Helper para requisições com Token
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const token = sessao?.token;
@@ -450,6 +510,289 @@ export default function App() {
       console.error(`Erro ao carregar lojas da empresa ${empresaId}:`, err);
     }
   };
+
+  // --- FUNÇÕES E EFEITOS DO MÓDULO FINANCEIRO ---
+
+  const carregarFinanceiroDashboard = async () => {
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/dashboard`);
+      if (res.ok) {
+        const data = await res.json();
+        setFinDashboard(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar dashboard financeiro:', err);
+    }
+  };
+
+  const carregarFinanceiroFaturas = async () => {
+    try {
+      const queryParams = new URLSearchParams({
+        status: finFaturasFiltros.status,
+        empresaId: finFaturasFiltros.empresaId,
+        dataInicio: finFaturasFiltros.dataInicio,
+        dataFim: finFaturasFiltros.dataFim,
+        page: finPaginaAtual.toString(),
+        limit: finFaturasFiltros.limit.toString()
+      });
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/faturas?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFinFaturas(data.faturas || []);
+        setFinTotalPaginas(data.paginacao?.paginas || 1);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar faturas:', err);
+    }
+  };
+
+  const carregarFinanceiroRelatorios = async () => {
+    try {
+      const [resFat, resInad, resChurn, resPrev] = await Promise.all([
+        apiFetch(`${BACKEND_URL}/api/admin/financeiro/relatorios/faturamento`),
+        apiFetch(`${BACKEND_URL}/api/admin/financeiro/relatorios/inadimplencia`),
+        apiFetch(`${BACKEND_URL}/api/admin/financeiro/relatorios/churn`),
+        apiFetch(`${BACKEND_URL}/api/admin/financeiro/relatorios/previsibilidade`)
+      ]);
+      if (resFat.ok) setFinRelFaturamento(await resFat.json());
+      if (resInad.ok) setFinRelInadimplencia(await resInad.json());
+      if (resChurn.ok) setFinRelChurn(await resChurn.json());
+      if (resPrev.ok) setFinRelPrevisibilidade(await resPrev.json());
+    } catch (err) {
+      console.error('Erro ao carregar relatórios financeiros:', err);
+    }
+  };
+
+  const carregarFinanceiroConfig = async () => {
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/configuracoes`);
+      if (res.ok) {
+        const data = await res.json();
+        setFinConfiguracoes(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar configurações de cobrança:', err);
+    }
+  };
+
+  const carregarFinanceiroAssinaturas = async () => {
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/assinaturas`);
+      if (res.ok) {
+        const data = await res.json();
+        setFinAssinaturas(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar assinaturas:', err);
+    }
+  };
+
+  const carregarFinanceiroPlanos = async () => {
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/planos`);
+      if (res.ok) {
+        const data = await res.json();
+        setFinPlanos(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar planos:', err);
+    }
+  };
+
+  const carregarTodosDadosFinanceiros = () => {
+    carregarFinanceiroDashboard();
+    carregarFinanceiroFaturas();
+    carregarFinanceiroRelatorios();
+    carregarFinanceiroConfig();
+    carregarFinanceiroAssinaturas();
+    carregarFinanceiroPlanos();
+  };
+
+  const handleCobrarManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setManualCobrarError(null);
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/cobrar-manual`, {
+        method: 'POST',
+        body: JSON.stringify({
+          empresaId: manualCobrarEmpresaId,
+          valor: parseFloat(manualCobrarValor),
+          descricao: manualCobrarDescricao,
+          vencimento: manualCobrarVencimento
+        })
+      });
+      if (res.ok) {
+        setShowCobrarManualForm(false);
+        setManualCobrarEmpresaId('');
+        setManualCobrarValor('');
+        setManualCobrarDescricao('');
+        setManualCobrarVencimento('');
+        carregarTodosDadosFinanceiros();
+      } else {
+        const data = await res.json();
+        setManualCobrarError(data.error || 'Erro ao gerar cobrança manual');
+      }
+    } catch (err: any) {
+      setManualCobrarError(err.message);
+    }
+  };
+
+  const handleBaixaManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showBaixaManualForm) return;
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/faturas/${showBaixaManualForm}/baixa-manual`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          dataPagamento: new Date().toISOString(),
+          comprovanteReferencia: baixaManualComprovante,
+          observacoes: baixaManualObservacoes
+        })
+      });
+      if (res.ok) {
+        setShowBaixaManualForm(null);
+        setBaixaManualComprovante('');
+        setBaixaManualObservacoes('');
+        carregarTodosDadosFinanceiros();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao registrar baixa');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleContestarFatura = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showContestarForm) return;
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/faturas/${showContestarForm}/contestar`, {
+        method: 'PUT',
+        body: JSON.stringify({ motivo: contestarMotivo })
+      });
+      if (res.ok) {
+        setShowContestarForm(null);
+        setContestarMotivo('');
+        carregarTodosDadosFinanceiros();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao contestar fatura');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleCancelarFatura = async (faturaId: string) => {
+    if (!confirm('Deseja realmente cancelar esta fatura?')) return;
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/faturas/${faturaId}/cancelar`, {
+        method: 'PUT'
+      });
+      if (res.ok) {
+        carregarTodosDadosFinanceiros();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao cancelar fatura');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleSalvarConfigCobranca = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!finConfiguracoes) return;
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/admin/financeiro/configuracoes`, {
+        method: 'PUT',
+        body: JSON.stringify(finConfiguracoes)
+      });
+      if (res.ok) {
+        alert('Configurações salvas com sucesso!');
+        carregarFinanceiroConfig();
+        carregarFinanceiroDashboard();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao salvar configurações');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleSalvarPlano = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPlanoError(null);
+    const isEdit = !!showPlanoForm?.id;
+    const url = isEdit
+      ? `${BACKEND_URL}/api/admin/financeiro/planos/${showPlanoForm.id}`
+      : `${BACKEND_URL}/api/admin/financeiro/planos`;
+    const method = isEdit ? 'PUT' : 'POST';
+
+    try {
+      const res = await apiFetch(url, {
+        method,
+        body: JSON.stringify({
+          nome: planoNome,
+          descricao: planoDescricao,
+          valorMensal: parseFloat(planoValorMensal),
+          limiteEntregasMes: planoLimiteEntregas ? parseInt(planoLimiteEntregas) : null,
+          limiteLojas: planoLimiteLojas ? parseInt(planoLimiteLojas) : null,
+          limiteMotoristas: planoLimiteMotoristas ? parseInt(planoLimiteMotoristas) : null,
+          ativo: showPlanoForm?.ativo !== false
+        })
+      });
+      if (res.ok) {
+        setShowPlanoForm(null);
+        setPlanoNome('');
+        setPlanoDescricao('');
+        setPlanoValorMensal('');
+        setPlanoLimiteEntregas('');
+        setPlanoLimiteLojas('');
+        setPlanoLimiteMotoristas('');
+        carregarTodosDadosFinanceiros();
+      } else {
+        const data = await res.json();
+        setPlanoError(data.error || 'Erro ao salvar plano');
+      }
+    } catch (err: any) {
+      setPlanoError(err.message);
+    }
+  };
+
+  const startEditPlano = (plano: any) => {
+    setShowPlanoForm(plano);
+    setPlanoNome(plano.nome);
+    setPlanoDescricao(plano.descricao);
+    setPlanoValorMensal(plano.valorMensal.toString());
+    setPlanoLimiteEntregas(plano.limiteEntregasMes?.toString() || '');
+    setPlanoLimiteLojas(plano.limiteLojas?.toString() || '');
+    setPlanoLimiteMotoristas(plano.limiteMotoristas?.toString() || '');
+  };
+
+  const startNovoPlano = () => {
+    setShowPlanoForm({ id: '' });
+    setPlanoNome('');
+    setPlanoDescricao('');
+    setPlanoValorMensal('');
+    setPlanoLimiteEntregas('');
+    setPlanoLimiteLojas('');
+    setPlanoLimiteMotoristas('');
+  };
+
+  useEffect(() => {
+    if (sessao?.tipo === 'admin' && !lojaVisualizada && adminSubView === 'financeiro') {
+      carregarTodosDadosFinanceiros();
+    }
+  }, [sessao, lojaVisualizada, adminSubView]);
+
+  useEffect(() => {
+    if (sessao?.tipo === 'admin' && !lojaVisualizada && adminSubView === 'financeiro') {
+      carregarFinanceiroFaturas();
+    }
+  }, [finPaginaAtual, finFaturasFiltros]);
 
   const toggleEmpresaExpandida = (empresaId: string) => {
     if (expandedEmpresas.includes(empresaId)) {
@@ -2554,8 +2897,705 @@ export default function App() {
           </div>
         </header>
 
-        {/* Stats Grid */}
-        <div className="admin-stats-grid">
+        {/* Navigation Tabs */}
+        <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.4rem', borderRadius: '8px', border: '1px solid var(--border-thin)', marginBottom: '1.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-small"
+            style={{
+              flex: 1,
+              background: adminSubView === 'operacional' ? 'linear-gradient(135deg, var(--color-purple), var(--color-pink))' : 'transparent',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 600,
+              padding: '0.6rem 1rem',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAdminSubView('operacional')}
+          >
+            Operacional (Empresas & Lojas)
+          </button>
+          <button
+            type="button"
+            className="btn btn-small"
+            style={{
+              flex: 1,
+              background: adminSubView === 'financeiro' ? 'linear-gradient(135deg, var(--color-cyan), var(--color-blue))' : 'transparent',
+              color: adminSubView === 'financeiro' ? '#000' : '#fff',
+              border: 'none',
+              fontWeight: 600,
+              padding: '0.6rem 1rem',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+            onClick={() => setAdminSubView('financeiro')}
+          >
+            Módulo Financeiro
+          </button>
+        </div>
+
+        {adminSubView === 'financeiro' ? (
+          <div className="financeiro-panel-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* KPI Cards Grid */}
+            <div className="report-kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              <div className="report-kpi-card" style={{ borderLeft: '4px solid var(--color-cyan)' }}>
+                <span className="kpi-label">MRR Atual (Assinaturas Ativas)</span>
+                <span className="kpi-value" style={{ color: 'var(--color-cyan)' }}>
+                  R$ {finDashboard?.mrrAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  Projetado próximo mês: R$ {finDashboard?.mrrProjetado.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                </span>
+              </div>
+              <div className="report-kpi-card" style={{ borderLeft: '4px solid var(--color-amber)' }}>
+                <span className="kpi-label">Cobranças em Aberto</span>
+                <span className="kpi-value" style={{ color: 'var(--color-amber)' }}>
+                  {finDashboard?.totalFaturasEmAberto || 0} faturas
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  Total: R$ {finDashboard?.valorEmAberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                </span>
+              </div>
+              <div className="report-kpi-card" style={{ borderLeft: '4px solid var(--color-rose)' }}>
+                <span className="kpi-label">Inadimplência</span>
+                <span className="kpi-value" style={{ color: 'var(--color-rose)' }}>
+                  {finDashboard?.taxaInadimplencia || 0}%
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  {finDashboard?.empresasInadimplentes || 0} de {finDashboard?.totalEmpresas || 0} empresas atrasadas
+                </span>
+              </div>
+              <div className="report-kpi-card" style={{ borderLeft: '4px solid var(--color-emerald)' }}>
+                <span className="kpi-label">Faturamento Líquido (Mês Atual)</span>
+                <span className="kpi-value" style={{ color: 'var(--color-emerald)' }}>
+                  R$ {finDashboard?.faturamentoLiquidoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  Faturamento bruto: R$ {finDashboard?.faturamentoBrutoMes.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                </span>
+              </div>
+            </div>
+
+            {/* Sub-tabs for Financeiro */}
+            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-thin)', paddingBottom: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-small"
+                style={{
+                  background: finSubTab === 'faturas' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                  color: finSubTab === 'faturas' ? 'var(--color-cyan)' : 'var(--text-secondary)',
+                  border: finSubTab === 'faturas' ? '1px solid var(--color-cyan)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  padding: '0.4rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}
+                onClick={() => setFinSubTab('faturas')}
+              >
+                Faturas e Cobranças
+              </button>
+              <button
+                type="button"
+                className="btn btn-small"
+                style={{
+                  background: finSubTab === 'relatorios' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                  color: finSubTab === 'relatorios' ? 'var(--color-cyan)' : 'var(--text-secondary)',
+                  border: finSubTab === 'relatorios' ? '1px solid var(--color-cyan)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  padding: '0.4rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}
+                onClick={() => setFinSubTab('relatorios')}
+              >
+                Relatórios Analíticos
+              </button>
+              <button
+                type="button"
+                className="btn btn-small"
+                style={{
+                  background: finSubTab === 'planos_config' ? 'rgba(6, 182, 212, 0.15)' : 'transparent',
+                  color: finSubTab === 'planos_config' ? 'var(--color-cyan)' : 'var(--text-secondary)',
+                  border: finSubTab === 'planos_config' ? '1px solid var(--color-cyan)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  padding: '0.4rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}
+                onClick={() => setFinSubTab('planos_config')}
+              >
+                Planos, Assinaturas e Configurações
+              </button>
+            </div>
+
+            {/* TAB: FATURAS */}
+            {finSubTab === 'faturas' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Filtros e Nova Cobrança */}
+                <div className="card" style={{ padding: '1rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'end', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'end' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Empresa</label>
+                      <select
+                        className="form-input"
+                        style={{ height: '34px', padding: '0 0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-thin)', color: 'var(--text-primary)', borderRadius: '4px' }}
+                        value={finFaturasFiltros.empresaId}
+                        onChange={e => setFinFaturasFiltros(prev => ({ ...prev, empresaId: e.target.value }))}
+                      >
+                        <option value="">Todas as Empresas</option>
+                        {empresas.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Status</label>
+                      <select
+                        className="form-input"
+                        style={{ height: '34px', padding: '0 0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-thin)', color: 'var(--text-primary)', borderRadius: '4px' }}
+                        value={finFaturasFiltros.status}
+                        onChange={e => setFinFaturasFiltros(prev => ({ ...prev, status: e.target.value }))}
+                      >
+                        <option value="">Todos os Status</option>
+                        <option value="PAGA">Paga</option>
+                        <option value="PENDENTE">Pendente</option>
+                        <option value="ATRASADA">Atrasada</option>
+                        <option value="CONTESTADA">Contestada</option>
+                        <option value="CANCELADA">Cancelada</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Vencimento Inicial</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        style={{ height: '34px', padding: '0 0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-thin)', color: 'var(--text-primary)', borderRadius: '4px' }}
+                        value={finFaturasFiltros.dataInicio}
+                        onChange={e => setFinFaturasFiltros(prev => ({ ...prev, dataInicio: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Vencimento Final</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        style={{ height: '34px', padding: '0 0.5rem', background: 'var(--bg-primary)', border: '1px solid var(--border-thin)', color: 'var(--text-primary)', borderRadius: '4px' }}
+                        value={finFaturasFiltros.dataFim}
+                        onChange={e => setFinFaturasFiltros(prev => ({ ...prev, dataFim: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    style={{ height: '34px', background: 'linear-gradient(135deg, var(--color-cyan), var(--color-blue))', color: '#000', border: 'none', fontWeight: 600 }}
+                    onClick={() => setShowCobrarManualForm(true)}
+                  >
+                    + Cobrança Manual
+                  </button>
+                </div>
+
+                {/* Tabela de Faturas */}
+                <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', overflow: 'hidden' }}>
+                  <div className="lojas-table-container">
+                    <table className="lojas-table">
+                      <thead>
+                        <tr>
+                          <th>ID / Ref</th>
+                          <th>Empresa</th>
+                          <th>CNPJ</th>
+                          <th>Mes/Ano</th>
+                          <th>Bruto</th>
+                          <th>Desconto</th>
+                          <th>Líquido</th>
+                          <th>Vencimento</th>
+                          <th>Pagamento</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'right' }}>Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {finFaturas.length === 0 ? (
+                          <tr>
+                            <td colSpan={11} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                              Nenhuma fatura encontrada com os filtros selecionados.
+                            </td>
+                          </tr>
+                        ) : (
+                          finFaturas.map(fat => {
+                            let badgeColor = 'gray';
+                            let statusText = fat.status;
+                            if (fat.status === 'PAGA') { badgeColor = 'var(--color-emerald)'; statusText = 'Paga'; }
+                            else if (fat.status === 'PENDENTE') { badgeColor = 'var(--color-amber)'; statusText = 'Pendente'; }
+                            else if (fat.status === 'ATRASADA') { badgeColor = 'var(--color-rose)'; statusText = 'Atrasada'; }
+                            else if (fat.status === 'CONTESTADA') { badgeColor = 'var(--color-purple)'; statusText = 'Contestada'; }
+                            else if (fat.status === 'CANCELADA') { badgeColor = '#4b5563'; statusText = 'Cancelada'; }
+
+                            return (
+                              <tr key={fat.id}>
+                                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>{fat.id}</td>
+                                <td><strong>{fat.empresaNome}</strong></td>
+                                <td style={{ color: 'var(--text-secondary)' }}>{fat.cnpj}</td>
+                                <td>{fat.referenciaMesAno}</td>
+                                <td style={{ fontFamily: 'var(--font-mono)' }}>R$ {fat.valorBruto.toFixed(2)}</td>
+                                <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-rose)' }}>-R$ {fat.valorDesconto.toFixed(2)}</td>
+                                <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>R$ {fat.valorLiquido.toFixed(2)}</td>
+                                <td>{new Date(fat.dataVencimento).toLocaleDateString('pt-BR')}</td>
+                                <td>{fat.dataPagamento ? new Date(fat.dataPagamento).toLocaleDateString('pt-BR') : '-'}</td>
+                                <td>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: '12px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    background: `rgba(${badgeColor === 'var(--color-emerald)' ? '16,185,129' : badgeColor === 'var(--color-amber)' ? '245,158,11' : badgeColor === 'var(--color-rose)' ? '244,63,94' : badgeColor === 'var(--color-purple)' ? '139,92,246' : '75,85,99'}, 0.15)`,
+                                    color: badgeColor,
+                                    border: `1px solid ${badgeColor}`
+                                  }}>
+                                    {statusText}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                                    {fat.status !== 'PAGA' && fat.status !== 'CANCELADA' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="btn btn-small btn-success"
+                                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', background: 'var(--color-emerald)', color: '#000' }}
+                                          onClick={() => setShowBaixaManualForm(fat.id)}
+                                        >
+                                          Baixar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-small"
+                                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', background: 'rgba(139, 92, 246, 0.2)', color: 'var(--color-purple)', border: '1px solid rgba(139, 92, 246, 0.3)' }}
+                                          onClick={() => {
+                                            setShowContestarForm(fat.id);
+                                            setContestarMotivo('');
+                                          }}
+                                        >
+                                          Contestar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-small"
+                                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.4rem', background: 'rgba(244, 63, 94, 0.2)', color: 'var(--color-rose)', border: '1px solid rgba(244, 63, 94, 0.3)' }}
+                                          onClick={() => handleCancelarFatura(fat.id)}
+                                        >
+                                          Cancelar
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Paginação */}
+                  {finTotalPaginas > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border-thin)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Página <strong>{finPaginaAtual}</strong> de <strong>{finTotalPaginas}</strong>
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          disabled={finPaginaAtual === 1}
+                          onClick={() => setFinPaginaAtual(prev => Math.max(prev - 1, 1))}
+                        >
+                          Anterior
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          disabled={finPaginaAtual === finTotalPaginas}
+                          onClick={() => setFinPaginaAtual(prev => Math.min(prev + 1, finTotalPaginas))}
+                        >
+                          Próximo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: RELATORIOS */}
+            {finSubTab === 'relatorios' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                  {/* Gráfico 1: Faturamento Bruto vs Líquido */}
+                  <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Faturamento Bruto vs. Líquido Mensal (Pagas)</h3>
+                    {finRelFaturamento.length === 0 ? (
+                      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Sem dados históricos suficientes.</div>
+                    ) : (
+                      <div>
+                        {/* Renderizar Gráfico SVG */}
+                        <svg width="100%" height="220" viewBox="0 0 500 220" style={{ overflow: 'visible' }}>
+                          <line x1="50" y1="20" x2="480" y2="20" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="70" x2="480" y2="70" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="120" x2="480" y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="170" x2="480" y2="170" stroke="var(--border-thin)" strokeWidth="1" />
+                          
+                          {/* Desenha as barras */}
+                          {(() => {
+                            const maxVal = Math.max(...finRelFaturamento.map(d => Math.max(d.bruto, d.liquido)), 100);
+                            const scale = 150 / maxVal;
+                            
+                            return finRelFaturamento.slice(-5).map((d, idx) => {
+                              const x = 80 + idx * 80;
+                              const hBruto = d.bruto * scale;
+                              const hLiquido = d.liquido * scale;
+                              
+                              return (
+                                <g key={d.referencia}>
+                                  {/* Barra Bruto (Blue) */}
+                                  <rect x={x} y={170 - hBruto} width="18" height={hBruto} fill="url(#gradBruto)" rx="2" stroke="var(--color-blue)" strokeWidth="0.5" />
+                                  {/* Barra Liquido (Emerald) */}
+                                  <rect x={x + 22} y={170 - hLiquido} width="18" height={hLiquido} fill="url(#gradLiquido)" rx="2" stroke="var(--color-emerald)" strokeWidth="0.5" />
+                                  
+                                  {/* Labels */}
+                                  <text x={x + 20} y="185" fill="var(--text-secondary)" fontSize="9" textAnchor="middle">{d.referencia}</text>
+                                  {d.bruto > 0 && <text x={x + 9} y={165 - hBruto} fill="var(--color-blue)" fontSize="8" textAnchor="middle">R$ {d.bruto.toFixed(0)}</text>}
+                                  {d.liquido > 0 && <text x={x + 31} y={165 - hLiquido} fill="var(--color-emerald)" fontSize="8" textAnchor="middle">R$ {d.liquido.toFixed(0)}</text>}
+                                </g>
+                              );
+                            });
+                          })()}
+                          <defs>
+                            <linearGradient id="gradBruto" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--color-blue)" stopOpacity="1" />
+                              <stop offset="100%" stopColor="rgba(59, 130, 246, 0.2)" stopOpacity="0.2" />
+                            </linearGradient>
+                            <linearGradient id="gradLiquido" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--color-emerald)" stopOpacity="1" />
+                              <stop offset="100%" stopColor="rgba(16, 185, 129, 0.2)" stopOpacity="0.2" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ width: '12px', height: '12px', background: 'var(--color-blue)', borderRadius: '2px', border: '1px solid var(--color-blue)' }}></span>
+                            Faturamento Bruto
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <span style={{ width: '12px', height: '12px', background: 'var(--color-emerald)', borderRadius: '2px', border: '1px solid var(--color-emerald)' }}></span>
+                            Faturamento Líquido
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gráfico 2: Taxa de Inadimplência */}
+                  <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Taxa de Inadimplência Mensal (%)</h3>
+                    {finRelInadimplencia.length === 0 ? (
+                      <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Sem dados suficientes.</div>
+                    ) : (
+                      <div>
+                        <svg width="100%" height="220" viewBox="0 0 500 220" style={{ overflow: 'visible' }}>
+                          <line x1="50" y1="20" x2="480" y2="20" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="70" x2="480" y2="70" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="120" x2="480" y2="120" stroke="rgba(255,255,255,0.03)" strokeDasharray="3,3" />
+                          <line x1="50" y1="170" x2="480" y2="170" stroke="var(--border-thin)" strokeWidth="1" />
+                          
+                          {/* Desenhar linha/pontos */}
+                          {(() => {
+                            const points: string[] = [];
+                            finRelInadimplencia.slice(-5).forEach((d, idx) => {
+                              const x = 80 + idx * 80;
+                              const y = 170 - (d.taxaInadimplencia * 1.5);
+                              points.push(`${x},${y}`);
+                            });
+                            
+                            return (
+                              <g>
+                                {points.length > 1 && (
+                                  <polyline
+                                    fill="none"
+                                    stroke="var(--color-rose)"
+                                    strokeWidth="2.5"
+                                    points={points.join(' ')}
+                                  />
+                                )}
+                                {finRelInadimplencia.slice(-5).map((d, idx) => {
+                                  const x = 80 + idx * 80;
+                                  const y = 170 - (d.taxaInadimplencia * 1.5);
+                                  return (
+                                    <g key={d.referencia}>
+                                      <circle cx={x} cy={y} r="5" fill="var(--bg-card)" stroke="var(--color-rose)" strokeWidth="2.5" />
+                                      <text x={x} y="185" fill="var(--text-secondary)" fontSize="9" textAnchor="middle">{d.referencia}</text>
+                                      <text x={x} y={y - 10} fill="var(--color-rose)" fontSize="9" textAnchor="middle" fontWeight="bold">{d.taxaInadimplencia}%</text>
+                                    </g>
+                                  );
+                                })}
+                              </g>
+                            );
+                          })()}
+                        </svg>
+                        <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          Taxa % de MRR retido por faturas atrasadas sobre o total faturado no mês.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                  {/* Churn Rate Financeiro */}
+                  <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Churn Rate Financeiro (MRR Perdido por Cancelamento)</h3>
+                    <div className="lojas-table-container">
+                      <table className="lojas-table" style={{ fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Referência</th>
+                            <th>Faturas Emitidas</th>
+                            <th>Faturas Canceladas</th>
+                            <th>Receita Total</th>
+                            <th>Receita Perdida</th>
+                            <th>Churn Rate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {finRelChurn.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>Sem dados de cancelamento.</td>
+                            </tr>
+                          ) : (
+                            finRelChurn.map(d => (
+                              <tr key={d.referencia}>
+                                <td style={{ fontWeight: 600 }}>{d.referencia}</td>
+                                <td>{d.faturasTotal}</td>
+                                <td style={{ color: 'var(--color-rose)' }}>{d.faturasCanceladas}</td>
+                                <td>R$ {d.receitaTotal.toFixed(2)}</td>
+                                <td style={{ color: 'var(--color-rose)' }}>R$ {d.receitaPerdida.toFixed(2)}</td>
+                                <td>
+                                  <strong style={{ color: d.churnRate > 0 ? 'var(--color-rose)' : 'var(--color-emerald)' }}>
+                                    {d.churnRate}%
+                                  </strong>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Relatório de Previsibilidade */}
+                  <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Contas a Receber nos Próximos Meses (Previsibilidade)</h3>
+                    <div className="lojas-table-container">
+                      <table className="lojas-table" style={{ fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Dia Vencimento</th>
+                            <th>Total de Assinaturas</th>
+                            <th>Faturamento Projetado (MRR)</th>
+                            <th>Projeção Trimestral (3 Meses)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {finRelPrevisibilidade.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>Nenhuma assinatura ativa para previsão.</td>
+                            </tr>
+                          ) : (
+                            finRelPrevisibilidade.map(d => (
+                              <tr key={d.diaVencimento}>
+                                <td style={{ fontWeight: 600 }}>Dia {d.diaVencimento}</td>
+                                <td>{d.totalAssinaturas} assinatura(s)</td>
+                                <td style={{ color: 'var(--color-cyan)', fontWeight: 600 }}>R$ {d.mrrProjetado.toFixed(2)}</td>
+                                <td style={{ color: 'var(--color-emerald)', fontWeight: 600 }}>R$ {(d.mrrProjetado * 3).toFixed(2)}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: PLANOS E CONFIGURAÇÕES */}
+            {finSubTab === 'planos_config' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                
+                {/* CONFIGURAÇÃO DE COBRANÇA */}
+                <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Configurações de Cobrança e Inadimplência</h3>
+                  {finConfiguracoes && (
+                    <form onSubmit={handleSalvarConfigCobranca} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div className="form-group">
+                        <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Carência para Bloqueio de Acesso (Dias)</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={finConfiguracoes.diasCarenciaBloqueio}
+                          onChange={e => setFinConfiguracoes((prev: any) => ({ ...prev, diasCarenciaBloqueio: parseInt(e.target.value) || 0 }))}
+                          required
+                        />
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Tempo limite com faturas vencidas antes de suspender acessos das lojas.</span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Multa por Atraso (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            value={finConfiguracoes.multaPercentual}
+                            onChange={e => setFinConfiguracoes((prev: any) => ({ ...prev, multaPercentual: parseFloat(e.target.value) || 0 }))}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Juros ao Mês (%)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            value={finConfiguracoes.jurosMesPercentual}
+                            onChange={e => setFinConfiguracoes((prev: any) => ({ ...prev, jurosMesPercentual: parseFloat(e.target.value) || 0 }))}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Notificar E-mail (Dias Antes)</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            value={finConfiguracoes.emailNotificacaoDiasAntes}
+                            onChange={e => setFinConfiguracoes((prev: any) => ({ ...prev, emailNotificacaoDiasAntes: parseInt(e.target.value) || 0 }))}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Notificar WhatsApp (Dias Atraso)</label>
+                          <input
+                            type="number"
+                            className="form-input"
+                            value={finConfiguracoes.whatsappNotificacaoDiasAtraso}
+                            onChange={e => setFinConfiguracoes((prev: any) => ({ ...prev, whatsappNotificacaoDiasAtraso: parseInt(e.target.value) || 0 }))}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <button type="submit" className="btn btn-success" style={{ marginTop: '0.5rem', background: 'linear-gradient(135deg, var(--color-cyan), var(--color-blue))', color: '#000', border: 'none', fontWeight: 600 }}>
+                        Salvar Configurações
+                      </button>
+                    </form>
+                  )}
+                </div>
+
+                {/* PLANOS */}
+                <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>Planos de Assinatura</h3>
+                    <button type="button" className="btn btn-success btn-small" onClick={startNovoPlano}>
+                      + Novo Plano
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {finPlanos.map(plan => (
+                      <div key={plan.id} style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-thin)', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ color: 'var(--color-cyan)' }}>{plan.nome}</strong>
+                          <span style={{ fontSize: '0.85rem', marginLeft: '0.5rem', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                            R$ {plan.valorMensal.toFixed(2)}/mês
+                          </span>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                            {plan.descricao}
+                          </p>
+                        </div>
+                        <button type="button" className="btn btn-small" onClick={() => startEditPlano(plan)} style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem' }}>
+                          Editar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ASSINATURAS DAS EMPRESAS */}
+                <div className="card" style={{ padding: '1.25rem', background: 'var(--bg-card)', border: '1px solid var(--border-thin)', gridColumn: 'span 2' }}>
+                  <h3 style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', fontWeight: 600 }}>Assinaturas Ativas de Empresas</h3>
+                  <div className="lojas-table-container">
+                    <table className="lojas-table" style={{ fontSize: '0.8rem' }}>
+                      <thead>
+                        <tr>
+                          <th>Empresa</th>
+                          <th>CNPJ</th>
+                          <th>Plano</th>
+                          <th>Valor Cobrado</th>
+                          <th>Dia Vencimento</th>
+                          <th>Status</th>
+                          <th>Próxima Cobrança</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {finAssinaturas.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>Sem assinaturas registradas.</td>
+                          </tr>
+                        ) : (
+                          finAssinaturas.map(sub => (
+                            <tr key={sub.id}>
+                              <td><strong>{sub.empresaNome}</strong></td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{sub.cnpj}</td>
+                              <td><span className="badge-tenant ativo" style={{ background: 'var(--color-purple)' }}>{sub.planoNome}</span></td>
+                              <td style={{ fontFamily: 'var(--font-mono)' }}>R$ {sub.valorEfetivo.toFixed(2)}</td>
+                              <td>Todo dia {sub.diaVencimento}</td>
+                              <td>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem',
+                                  background: sub.status === 'ATIVA' ? 'rgba(16,185,129,0.1)' : 'rgba(244,63,94,0.1)',
+                                  color: sub.status === 'ATIVA' ? 'var(--color-emerald)' : 'var(--color-rose)'
+                                }}>
+                                  {sub.status}
+                                </span>
+                              </td>
+                              <td>{sub.proximoFaturamento ? new Date(sub.proximoFaturamento).toLocaleDateString('pt-BR') : '-'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Stats Grid */}
+            <div className="admin-stats-grid">
           <div className="admin-stat-card">
             <span className="admin-stat-label">Total de Empresas</span>
             <span className="admin-stat-value">{empresas.length}</span>
@@ -2951,6 +3991,253 @@ export default function App() {
             })
           )}
         </div>
+      </>
+    )}
+
+        {/* --- MODAIS DO MÓDULO FINANCEIRO --- */}
+        {showCobrarManualForm && createPortal(
+          <div className="report-modal-overlay" onClick={() => setShowCobrarManualForm(false)}>
+            <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="report-modal-header">
+                <h2>Gerar Cobrança Manual (Fatura Avulsa)</h2>
+                <button type="button" className="report-modal-close-btn" onClick={() => setShowCobrarManualForm(false)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="report-modal-body">
+                <form onSubmit={handleCobrarManual} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Empresa</label>
+                    <select
+                      className="form-input"
+                      value={manualCobrarEmpresaId}
+                      onChange={e => setManualCobrarEmpresaId(e.target.value)}
+                      required
+                    >
+                      <option value="">Selecione uma empresa...</option>
+                      {empresas.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Valor Cobrado (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={manualCobrarValor}
+                      onChange={e => setManualCobrarValor(e.target.value)}
+                      placeholder="Ex: 299.00"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Referência / Descrição</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={manualCobrarDescricao}
+                      onChange={e => setManualCobrarDescricao(e.target.value)}
+                      placeholder="Ex: Mensalidade extra"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Data de Vencimento</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={manualCobrarVencimento}
+                      onChange={e => setManualCobrarVencimento(e.target.value)}
+                      required
+                    />
+                  </div>
+                  {manualCobrarError && (
+                    <div style={{ color: 'var(--color-rose)', fontSize: '0.75rem' }}>{manualCobrarError}</div>
+                  )}
+                  <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem', background: 'linear-gradient(135deg, var(--color-cyan), var(--color-blue))', color: '#000', border: 'none', fontWeight: 600 }}>Gerar Cobrança</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        , document.body)}
+
+        {showBaixaManualForm && createPortal(
+          <div className="report-modal-overlay" onClick={() => setShowBaixaManualForm(null)}>
+            <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="report-modal-header">
+                <h2>Dar Baixa Manual na Fatura</h2>
+                <button type="button" className="report-modal-close-btn" onClick={() => setShowBaixaManualForm(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="report-modal-body">
+                <form onSubmit={handleBaixaManual} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fatura ID</label>
+                    <input type="text" className="form-input" value={showBaixaManualForm} readOnly disabled />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Comprovante de Referência / Transação</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={baixaManualComprovante}
+                      onChange={e => setBaixaManualComprovante(e.target.value)}
+                      placeholder="Ex: Autenticação Pix E123456"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Observações</label>
+                    <textarea
+                      className="form-input"
+                      value={baixaManualObservacoes}
+                      onChange={e => setBaixaManualObservacoes(e.target.value)}
+                      placeholder="Ex: Recebido via transferência bancária direta."
+                      rows={3}
+                      style={{ resize: 'vertical', minHeight: '60px' }}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem' }}>Confirmar Pagamento</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        , document.body)}
+
+        {showContestarForm && createPortal(
+          <div className="report-modal-overlay" onClick={() => setShowContestarForm(null)}>
+            <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="report-modal-header">
+                <h2>Marcar Fatura como Contestada</h2>
+                <button type="button" className="report-modal-close-btn" onClick={() => setShowContestarForm(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="report-modal-body">
+                <form onSubmit={handleContestarFatura} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Fatura ID</label>
+                    <input type="text" className="form-input" value={showContestarForm} readOnly disabled />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Motivo da Contestação</label>
+                    <textarea
+                      className="form-input"
+                      value={contestarMotivo}
+                      onChange={e => setContestarMotivo(e.target.value)}
+                      placeholder="Descreva o motivo relatado pela empresa para a contestação da cobrança..."
+                      rows={4}
+                      required
+                      style={{ resize: 'vertical', minHeight: '80px' }}
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem', background: 'var(--color-purple)', border: '1px solid var(--color-purple)', color: '#fff' }}>Registrar Contestação</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        , document.body)}
+
+        {showPlanoForm && createPortal(
+          <div className="report-modal-overlay" onClick={() => setShowPlanoForm(null)}>
+            <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="report-modal-header">
+                <h2>{showPlanoForm.id ? 'Editar Plano de Assinatura' : 'Criar Novo Plano de Assinatura'}</h2>
+                <button type="button" className="report-modal-close-btn" onClick={() => setShowPlanoForm(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="report-modal-body">
+                <form onSubmit={handleSalvarPlano} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Nome do Plano</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={planoNome}
+                      onChange={e => setPlanoNome(e.target.value)}
+                      placeholder="Ex: Silver Plus"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Descrição do Plano</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={planoDescricao}
+                      onChange={e => setPlanoDescricao(e.target.value)}
+                      placeholder="Ex: Recomendado para redes médias"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Valor Mensal (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={planoValorMensal}
+                      onChange={e => setPlanoValorMensal(e.target.value)}
+                      placeholder="Ex: 349.00"
+                      required
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Limite Entregas/Mês</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={planoLimiteEntregas}
+                        onChange={e => setPlanoLimiteEntregas(e.target.value)}
+                        placeholder="Deixe em branco para ilimitado"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Limite Lojas</label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={planoLimiteLojas}
+                        onChange={e => setPlanoLimiteLojas(e.target.value)}
+                        placeholder="Deixe em branco para ilimitado"
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Limite Motoristas</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={planoLimiteMotoristas}
+                      onChange={e => setPlanoLimiteMotoristas(e.target.value)}
+                      placeholder="Deixe em branco para ilimitado"
+                    />
+                  </div>
+                  {planoError && (
+                    <div style={{ color: 'var(--color-rose)', fontSize: '0.75rem' }}>{planoError}</div>
+                  )}
+                  <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem' }}>Salvar Plano</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        , document.body)}
 
         {editingLoja && createPortal(
           <div className="report-modal-overlay" onClick={() => setEditingLoja(null)}>
@@ -3113,9 +4400,7 @@ export default function App() {
           )}
         </div>
         <div className="header-actions">
-          {isRecebePedidosEnabled && (
-            <button className="btn btn-primary" onClick={triggerQuickOrder}>Gerar Pedido</button>
-          )}
+          <button className="btn btn-primary" onClick={triggerQuickOrder}>Gerar Pedido</button>
           <button className="btn btn-success" onClick={triggerQuickDelivery}>Entrega Rápida</button>
           <button className="btn btn-danger" onClick={handleClearSimulation}>Limpar Dados</button>
           {!lojaVisualizada && (
@@ -3331,7 +4616,7 @@ export default function App() {
           </div>
         )}
 
-        {isRecebePedidosEnabled ? (
+        {true ? (
           <>
             <div className="comandas-section-title font-mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-amber)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-amber)' }}></span>
