@@ -1654,6 +1654,102 @@ export default function App() {
     return ((d.id.charCodeAt(d.id.length - 1) || 0) * 3 % 100) + 25.50;
   };
 
+  // ===== Impressão automática de comanda (80mm térmica) =====
+  // Modo configurável por loja (persistido em localStorage):
+  //  - 'impressora': abre a comanda 80mm e dispara window.print() (vai p/ impressora
+  //    padrão; sai silencioso se o Chrome estiver com --kiosk-printing + 80mm como padrão)
+  //  - 'pdf': abre o documento 80mm numa aba para salvar/visualizar como PDF
+  //  - 'off': não imprime automaticamente
+  type ModoImpressaoComanda = 'impressora' | 'pdf' | 'off';
+  const [comandaPrintMode, setComandaPrintMode] = useState<ModoImpressaoComanda>(() => {
+    try { return (localStorage.getItem('distre_comanda_print_mode') as ModoImpressaoComanda) || 'impressora'; }
+    catch { return 'impressora'; }
+  });
+  const alterarModoImpressao = (m: ModoImpressaoComanda) => {
+    setComandaPrintMode(m);
+    try { localStorage.setItem('distre_comanda_print_mode', m); } catch { /* ignore */ }
+  };
+
+  const imprimirComandaTicket = (e: Entrega, modo: ModoImpressaoComanda) => {
+    if (modo === 'off') return;
+    const lojaNome = sessao?.nomeLoja || lojaVisualizada?.nome || 'DISTRE';
+    const valor = getDeliveryValue(e);
+    const itens = (e.itens && e.itens.length) ? e.itens : [];
+    const esc = (s: any) => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as Record<string, string>)[c]);
+    const win = window.open('', `COMANDA_${e.id}`, 'width=400,height=700');
+    if (!win) { alert('Permita pop-ups para imprimir/abrir a comanda.'); return; }
+    const linhasItens = itens.length
+      ? itens.map(i => `<div class="row"><span class="it">${esc(i)}</span></div>`).join('')
+      : '<div class="muted">Sem itens detalhados</div>';
+    win.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Comanda ${esc(e.id)}</title>
+      <style>
+        @page { size: 80mm auto; margin: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { width: 80mm; padding: 4mm 3mm; font-family: 'Courier New', monospace; color: #000; background: #fff; font-size: 12px; line-height: 1.35; }
+        .center { text-align: center; } .b { font-weight: 700; } .xl { font-size: 18px; }
+        .row { display: flex; justify-content: space-between; gap: 6px; }
+        .it { flex: 1; } .muted { color: #444; font-style: italic; }
+        .sep { border-top: 1px dashed #000; margin: 6px 0; }
+        .sep-solid { border-top: 2px solid #000; margin: 6px 0; }
+        .total { font-size: 15px; font-weight: 700; }
+        .noprint { margin-top: 14px; text-align: center; }
+        .noprint button { font: inherit; padding: 8px 14px; cursor: pointer; }
+        @media print { .noprint { display: none; } }
+      </style></head><body>
+        <div class="center b xl">${esc(lojaNome)}</div>
+        <div class="center">COMANDA DE PEDIDO</div>
+        <div class="sep-solid"></div>
+        <div class="row"><span>COMANDA:</span><span class="b">${esc(e.id)}</span></div>
+        <div class="row"><span>DATA/HORA:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>
+        ${e.formaPagamento ? `<div class="row"><span>PAGAMENTO:</span><span>${esc(String(e.formaPagamento).toUpperCase())}</span></div>` : ''}
+        <div class="sep"></div>
+        <div class="b">CLIENTE</div>
+        <div>${esc(e.nomeCliente)}</div>
+        ${e.clienteDocumento ? `<div>CPF/CNPJ: ${esc(e.clienteDocumento)}</div>` : ''}
+        <div class="sep"></div>
+        <div class="b">ENTREGA</div>
+        <div>${esc(e.endereco)}</div>
+        ${e.bairro ? `<div>Bairro: ${esc(e.bairro)}</div>` : ''}
+        ${e.cidade ? `<div>Cidade: ${esc(e.cidade)}</div>` : ''}
+        ${e.referencia ? `<div>Ref: ${esc(e.referencia)}</div>` : ''}
+        <div class="sep"></div>
+        <div class="b">ITENS</div>
+        ${linhasItens}
+        <div class="sep-solid"></div>
+        <div class="row total"><span>TOTAL:</span><span>R$ ${valor.toFixed(2)}</span></div>
+        <div class="sep"></div>
+        <div class="center">Distre - Gestao de Entregas</div>
+        <div class="noprint"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
+      </body></html>`);
+    win.document.close();
+    if (modo === 'impressora') {
+      win.focus();
+      setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 400);
+    }
+  };
+
+  // Detecta novos pedidos na fila e imprime a comanda automaticamente.
+  const comandasImpressasRef = useRef<Set<string>>(new Set());
+  const printInitRef = useRef(false);
+  useEffect(() => {
+    const pedidosRecebidos = deliveries.filter(d => d.tipoComanda === 'pedido' && d.status === 'RECEBIDO');
+    // Na 1ª carga, marca o backlog como "já visto" para não imprimir pedidos antigos de uma vez.
+    if (!printInitRef.current) {
+      pedidosRecebidos.forEach(d => comandasImpressasRef.current.add(d.id));
+      printInitRef.current = true;
+      return;
+    }
+    // Só auto-imprime no contexto operacional da própria loja (não no admin observando).
+    if (comandaPrintMode === 'off' || sessao?.tipo !== 'loja') return;
+    pedidosRecebidos
+      .filter(d => !comandasImpressasRef.current.has(d.id))
+      .forEach(d => {
+        comandasImpressasRef.current.add(d.id);
+        imprimirComandaTicket(d, comandaPrintMode);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveries, comandaPrintMode]);
+
   // Buffer de telemetria GPS quando estiver offline
   useEffect(() => {
     if (!offlineMode) return;
@@ -4499,6 +4595,25 @@ export default function App() {
                 Despacho Automático
               </label>
             )}
+            {tenantLojaId && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+                </svg>
+                Impressão de comanda:
+                <select
+                  className="form-select"
+                  value={comandaPrintMode}
+                  onChange={ev => alterarModoImpressao(ev.target.value as ModoImpressaoComanda)}
+                  style={{ width: 'auto', minHeight: '30px', padding: '0 var(--space-2)', fontSize: '0.75rem' }}
+                  title="Como a comanda é gerada quando um pedido novo entra na fila"
+                >
+                  <option value="impressora">Impressora 80mm (auto)</option>
+                  <option value="pdf">Abrir PDF</option>
+                  <option value="off">Desligada</option>
+                </select>
+              </label>
+            )}
           </h2>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {selectedRecebidas.length > 0 && tenantLojaId && (
@@ -4696,17 +4811,27 @@ export default function App() {
                           <span className="card-badge" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-amber)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                             PEDIDO
                           </span>
-                          <span className="card-badge" style={{ 
-                            fontSize: '0.55rem', 
-                            padding: '0.1rem 0.35rem', 
-                            borderRadius: '4px', 
-                            background: e.status === 'EM_PREPARO' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)', 
-                            color: e.status === 'EM_PREPARO' ? 'var(--color-blue)' : 'var(--color-amber)', 
+                          <span className="card-badge" style={{
+                            fontSize: '0.55rem',
+                            padding: '0.1rem 0.35rem',
+                            borderRadius: '4px',
+                            background: e.status === 'EM_PREPARO' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: e.status === 'EM_PREPARO' ? 'var(--color-blue)' : 'var(--color-amber)',
                             border: e.status === 'EM_PREPARO' ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
                             textTransform: 'uppercase'
                           }}>
                             {e.status === 'EM_PREPARO' ? 'Preparando' : 'Recebido'}
                           </span>
+                          <button
+                            className="icon-btn"
+                            title="Imprimir / reimprimir comanda (80mm)"
+                            onClick={(ev) => { ev.stopPropagation(); imprimirComandaTicket(e, 'impressora'); }}
+                            style={{ padding: '0.15rem' }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                       <div className="card-details" style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
