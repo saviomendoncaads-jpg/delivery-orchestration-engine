@@ -1,5 +1,6 @@
 export type StatusEntrega = 
   | 'RECEBIDO' 
+  | 'EM_PREPARO'
   | 'DESPACHADO' 
   | 'EM_TRANSITO' 
   | 'NO_LOCAL' 
@@ -105,6 +106,7 @@ export interface Entrega {
   lojaId?: string;
   nomeLoja?: string;
   nomeEmpresa?: string;
+  tipoComanda?: 'pedido' | 'entrega';
 }
 
 export interface LogWebhook {
@@ -159,6 +161,7 @@ export interface Loja {
   chaveAcesso: string;  // Código de referência DISTRE-XXXX-YYYY-ZZZZ
   ativo: boolean;
   criadoEm: string;
+  recebePedidos?: boolean;
 }
 
 export interface Sessao {
@@ -168,9 +171,19 @@ export interface Sessao {
   nomeEmpresa?: string;
   token: string;
   criadoEm: string;
+  recebePedidos?: boolean;
 }
 
 export interface TipoVeiculo {
   id: string;
   name: string;
+}
+
+export interface Produto {
+  id: string;
+  nome: string;
+  preco: number;
+  lojaId?: string;
+  ativo: boolean;
+  imagemUrl?: string;
 }

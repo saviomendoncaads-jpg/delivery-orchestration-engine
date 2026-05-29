@@ -1,6 +1,7 @@
 import mssql from 'mssql/msnodesqlv8';
 import crypto from 'crypto';
-import { Entrega, Motorista, Empresa, Loja, TipoVeiculo } from './types';
+import { Entrega, Motorista, Empresa, Loja, TipoVeiculo, Produto } from './types';
+
 
 const config: mssql.config = {
   server: 'localhost\\SQLEXPRESS',
@@ -84,7 +85,9 @@ async function inicializarBanco() {
       BAIRRO NVARCHAR(255) NULL,
       CIDADE NVARCHAR(255) NULL,
       FORMA_PAGAMENTO VARCHAR(100) NULL,
-      DESPACHADO_EM VARCHAR(100) NULL
+      DESPACHADO_EM VARCHAR(100) NULL,
+      TIPO_COMANDA VARCHAR(50) NOT NULL DEFAULT 'entrega',
+      REFERENCIA NVARCHAR(MAX) NULL
     );
 
     IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'CLIENTE_DOCUMENTO')
@@ -116,6 +119,17 @@ async function inicializarBanco() {
     BEGIN
       ALTER TABLE ENTREGAS ADD DESPACHADO_EM VARCHAR(100) NULL;
     END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'TIPO_COMANDA')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD TIPO_COMANDA VARCHAR(50) NOT NULL DEFAULT 'entrega';
+    END
+
+    IF OBJECT_ID('ENTREGAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ENTREGAS') AND name = 'REFERENCIA')
+    BEGIN
+      ALTER TABLE ENTREGAS ADD REFERENCIA NVARCHAR(MAX) NULL;
+    END
+
 
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LOGS_EVENTOS' AND xtype='U')
     CREATE TABLE LOGS_EVENTOS (
@@ -170,7 +184,8 @@ async function inicializarBanco() {
       SENHA_HASH VARCHAR(256) NOT NULL,
       CHAVE_ACESSO VARCHAR(100) NOT NULL UNIQUE,
       ATIVO BIT NOT NULL DEFAULT 1,
-      CRIADO_EM VARCHAR(100) NOT NULL
+      CRIADO_EM VARCHAR(100) NOT NULL,
+      RECEBE_PEDIDOS BIT NOT NULL DEFAULT 0
     );
 
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='TIPOS_VEICULOS' AND xtype='U')
@@ -179,10 +194,26 @@ async function inicializarBanco() {
       NOME NVARCHAR(255) NOT NULL
     );
 
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PRODUTOS' AND xtype='U')
+    CREATE TABLE PRODUTOS (
+      ID VARCHAR(50) PRIMARY KEY,
+      NOME NVARCHAR(255) NOT NULL,
+      PRECO DECIMAL(10, 2) NOT NULL,
+      LOJA_ID VARCHAR(100) NULL,
+      ATIVO BIT NOT NULL DEFAULT 1,
+      IMAGEM_URL NVARCHAR(500) NULL
+    );
+
     -- Garante que se a tabela LOJAS já existe, ela tenha a coluna CNPJ
     IF OBJECT_ID('LOJAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('LOJAS') AND name = 'CNPJ')
     BEGIN
       ALTER TABLE LOJAS ADD CNPJ VARCHAR(20) NULL;
+    END
+
+    -- Garante que se a tabela LOJAS já existe, ela tenha a coluna RECEBE_PEDIDOS
+    IF OBJECT_ID('LOJAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('LOJAS') AND name = 'RECEBE_PEDIDOS')
+    BEGIN
+      ALTER TABLE LOJAS ADD RECEBE_PEDIDOS BIT NOT NULL DEFAULT 0;
     END
 
     -- Cria índice único condicional para CNPJ da loja (permitindo que registros antigos fiquem NULL)
@@ -193,7 +224,7 @@ async function inicializarBanco() {
   `;
   try {
     await pool.request().query(query);
-    console.log('[Banco de Dados] Tabelas "ENTREGAS", "LOGS_EVENTOS", "ADMINISTRADORES", "MOTORISTAS", "EMPRESAS", "LOJAS" e "TIPOS_VEICULOS" verificadas/criadas com sucesso.');
+    console.log('[Banco de Dados] Tabelas "ENTREGAS", "LOGS_EVENTOS", "ADMINISTRADORES", "MOTORISTAS", "EMPRESAS", "LOJAS", "TIPOS_VEICULOS" e "PRODUTOS" verificadas/criadas com sucesso.');
     
     // Seed dos tipos de veículos padrão
     const vtCount = await pool.request().query('SELECT COUNT(*) as qtd FROM TIPOS_VEICULOS');
@@ -211,6 +242,29 @@ async function inicializarBanco() {
           .query('INSERT INTO TIPOS_VEICULOS (ID, NOME) VALUES (@id, @nome)');
       }
       console.log('[Banco de Dados] Tipos de veículos padrão cadastrados com sucesso.');
+    }
+
+    // Seed dos produtos padrão
+    const prodCount = await pool.request().query('SELECT COUNT(*) as qtd FROM PRODUTOS');
+    if (prodCount.recordset[0].qtd === 0) {
+      const defaultProducts = [
+        { id: 'prod-1', nome: 'Pizza Margherita', preco: 42.90, imagemUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500' },
+        { id: 'prod-2', nome: 'Pizza Calabresa', preco: 45.90, imagemUrl: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=500' },
+        { id: 'prod-3', nome: 'Pizza Quatro Queijos', preco: 49.90, imagemUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500' },
+        { id: 'prod-4', nome: 'Coca-Cola 2L', preco: 11.00, imagemUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500' },
+        { id: 'prod-5', nome: 'Guaraná Antarctica 2L', preco: 9.90, imagemUrl: 'https://images.unsplash.com/photo-1527960656366-ee418099e338?w=500' },
+        { id: 'prod-6', nome: 'Água Mineral Sem Gás', preco: 4.50, imagemUrl: 'https://images.unsplash.com/photo-1608885828989-43a110d13b4c?w=500' },
+        { id: 'prod-7', nome: 'Batata Frita Tradicional', preco: 25.00, imagemUrl: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500' }
+      ];
+      for (const prod of defaultProducts) {
+        await pool.request()
+          .input('id', mssql.VarChar, prod.id)
+          .input('nome', mssql.NVarChar, prod.nome)
+          .input('preco', mssql.Decimal(10, 2), prod.preco)
+          .input('imagemUrl', mssql.NVarChar, prod.imagemUrl)
+          .query('INSERT INTO PRODUTOS (ID, NOME, PRECO, ATIVO, IMAGEM_URL) VALUES (@id, @nome, @preco, 1, @imagemUrl)');
+      }
+      console.log('[Banco de Dados] Produtos padrão cadastrados com sucesso.');
     }
     
     // Seed do administrador master
@@ -285,6 +339,8 @@ export async function obterEntregas(): Promise<Entrega[]> {
       cidade: row.CIDADE || undefined,
       formaPagamento: row.FORMA_PAGAMENTO || undefined,
       despachadoEm: row.DESPACHADO_EM || undefined,
+      tipoComanda: (row.TIPO_COMANDA || 'entrega') as 'pedido' | 'entrega',
+      referencia: row.REFERENCIA || undefined
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter entregas:', err);
@@ -331,10 +387,12 @@ export async function salvarEntrega(e: Entrega) {
           BAIRRO = @bairro,
           CIDADE = @cidade,
           FORMA_PAGAMENTO = @formaPagamento,
-          DESPACHADO_EM = @despachadoEm
+          DESPACHADO_EM = @despachadoEm,
+          TIPO_COMANDA = @tipoComanda,
+          REFERENCIA = @referencia
       WHEN NOT MATCHED THEN
-        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO, ROMANEIO_ID, BAIRRO, CIDADE, FORMA_PAGAMENTO, DESPACHADO_EM)
-        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento, @romaneioId, @bairro, @cidade, @formaPagamento, @despachadoEm);
+        INSERT (ID, NOME_CLIENTE, ENDERECO, ITENS, PRIORIDADE, TIPO_CARGA, STATUS, MOTORISTA, ROTA, TELEMETRIA, INCIDENTES, URL_WEBHOOK, LOGS_WEBHOOK, CRIADO_EM, ATUALIZADO_EM, RECEBEDOR_NOME, RECEBEDOR_CPF, COMPROVANTE_FOTO_URL, ASSINATURA_BASE64, JUSTIFICATIVA_DESVIO_COORDENADA, DATA_HORA_CONCLUSAO, SEQUENCIA_ESPERADA, SEQUENCIA_REALIZADA, VALOR, LOJA_ID, NOME_LOJA, NOME_EMPRESA, CLIENTE_DOCUMENTO, ROMANEIO_ID, BAIRRO, CIDADE, FORMA_PAGAMENTO, DESPACHADO_EM, TIPO_COMANDA, REFERENCIA)
+        VALUES (@id, @nomeCliente, @endereco, @itens, @prioridade, @tipoCarga, @status, @motorista, @rota, @telemetria, @incidentes, @urlWebhook, @logsWebhook, @criadoEm, @atualizadoEm, @recebedorNome, @recebedorCPF, @comprovanteFotoUrl, @assinaturaBase64, @justificativaDesvioCoordenada, @dataHoraConclusao, @sequenciaEsperada, @sequenciaRealizada, @valor, @lojaId, @nomeLoja, @nomeEmpresa, @clienteDocumento, @romaneioId, @bairro, @cidade, @formaPagamento, @despachadoEm, @tipoComanda, @referencia);
     `;
     
     await pool.request()
@@ -371,6 +429,8 @@ export async function salvarEntrega(e: Entrega) {
       .input('cidade', mssql.NVarChar, e.cidade || null)
       .input('formaPagamento', mssql.VarChar, e.formaPagamento || null)
       .input('despachadoEm', mssql.VarChar, e.despachadoEm || null)
+      .input('tipoComanda', mssql.VarChar, e.tipoComanda || 'entrega')
+      .input('referencia', mssql.NVarChar, e.referencia || null)
       .query(query);
   } catch (err) {
     console.error(`[Banco de Dados] Erro ao salvar entrega ${e.id}:`, err);
@@ -543,7 +603,8 @@ export async function obterLojas(): Promise<Loja[]> {
       senhaHash: row.SENHA_HASH,
       chaveAcesso: row.CHAVE_ACESSO,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
-      criadoEm: row.CRIADO_EM
+      criadoEm: row.CRIADO_EM,
+      recebePedidos: row.RECEBE_PEDIDOS === 1 || row.RECEBE_PEDIDOS === true
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter lojas:', err);
@@ -569,10 +630,11 @@ export async function salvarLoja(l: Loja) {
           USUARIO = @usuario,
           SENHA_HASH = @senhaHash,
           CHAVE_ACESSO = @chaveAcesso,
-          ATIVO = @ativo
+          ATIVO = @ativo,
+          RECEBE_PEDIDOS = @recebePedidos
       WHEN NOT MATCHED THEN
-        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, BAIRRO, CIDADE, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM)
-        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @bairro, @cidade, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm);
+        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, BAIRRO, CIDADE, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM, RECEBE_PEDIDOS)
+        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @bairro, @cidade, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm, @recebePedidos);
     `;
     await pool.request()
       .input('id', mssql.VarChar, l.id)
@@ -587,6 +649,7 @@ export async function salvarLoja(l: Loja) {
       .input('chaveAcesso', mssql.VarChar, l.chaveAcesso)
       .input('ativo', mssql.Bit, l.ativo ? 1 : 0)
       .input('criadoEm', mssql.VarChar, l.criadoEm)
+      .input('recebePedidos', mssql.Bit, l.recebePedidos ? 1 : 0)
       .query(query);
   } catch (err) {
     console.error(`[Banco de Dados] Erro ao salvar loja ${l.id}:`, err);
@@ -641,3 +704,30 @@ export async function salvarTipoVeiculo(vt: TipoVeiculo) {
     throw err;
   }
 }
+
+export async function obterProdutos(lojaId?: string): Promise<Produto[]> {
+  try {
+    if (!pool) return [];
+    let query = 'SELECT * FROM PRODUTOS WHERE ATIVO = 1';
+    const request = pool.request();
+    if (lojaId) {
+      query += ' AND (LOJA_ID = @lojaId OR LOJA_ID IS NULL)';
+      request.input('lojaId', mssql.VarChar, lojaId);
+    } else {
+      query += ' AND LOJA_ID IS NULL';
+    }
+    const result = await request.query(query);
+    return result.recordset.map((row: any) => ({
+      id: row.ID,
+      nome: row.NOME,
+      preco: Number(row.PRECO),
+      lojaId: row.LOJA_ID || undefined,
+      ativo: row.ATIVO === 1 || row.ATIVO === true,
+      imagemUrl: row.IMAGEM_URL || undefined
+    }));
+  } catch (err) {
+    console.error('[Banco de Dados] Erro ao obter produtos:', err);
+    return [];
+  }
+}
+

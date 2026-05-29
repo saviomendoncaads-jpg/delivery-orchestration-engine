@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
 import './App.css';
@@ -190,6 +190,7 @@ interface Entrega {
   lojaId?: string;
   nomeLoja?: string;
   nomeEmpresa?: string;
+  tipoComanda?: 'pedido' | 'entrega';
 }
 
 
@@ -256,6 +257,7 @@ interface Loja {
   chaveAcesso: string;
   ativo: boolean;
   criadoEm: string;
+  recebePedidos?: boolean;
 }
 
 interface Sessao {
@@ -265,6 +267,7 @@ interface Sessao {
   nomeEmpresa?: string;
   token: string;
   criadoEm?: string;
+  recebePedidos?: boolean;
 }
 
 export default function App() {
@@ -315,6 +318,17 @@ export default function App() {
   const [novaLojaEndereco, setNovaLojaEndereco] = useState('');
   const [novaLojaBairro, setNovaLojaBairro] = useState('');
   const [novaLojaCidade, setNovaLojaCidade] = useState('');
+  const [novaLojaRecebePedidos, setNovaLojaRecebePedidos] = useState(false);
+
+  const [editingLoja, setEditingLoja] = useState<Loja | null>(null);
+  const [editLojaNome, setEditLojaNome] = useState('');
+  const [editLojaCnpj, setEditLojaCnpj] = useState('');
+  const [editLojaUsuario, setEditLojaUsuario] = useState('');
+  const [editLojaSenha, setEditLojaSenha] = useState('');
+  const [editLojaEndereco, setEditLojaEndereco] = useState('');
+  const [editLojaBairro, setEditLojaBairro] = useState('');
+  const [editLojaCidade, setEditLojaCidade] = useState('');
+  const [editLojaRecebePedidos, setEditLojaRecebePedidos] = useState(false);
 
   // Loja sendo visualizada pelo Admin Master
   const [lojaVisualizada, setLojaVisualizada] = useState<{ id: string; nome: string; nomeEmpresa: string } | null>(null);
@@ -493,7 +507,8 @@ export default function App() {
           senha: novaLojaSenha,
           endereco: novaLojaEndereco,
           bairro: novaLojaBairro,
-          cidade: novaLojaCidade
+          cidade: novaLojaCidade,
+          recebePedidos: novaLojaRecebePedidos
         })
       });
       if (!res.ok) {
@@ -507,6 +522,7 @@ export default function App() {
       setNovaLojaEndereco('');
       setNovaLojaBairro('');
       setNovaLojaCidade('');
+      setNovaLojaRecebePedidos(false);
       setShowNovaLojaForm(null);
       carregarLojas(empresaId);
       carregarEmpresas();
@@ -542,6 +558,78 @@ export default function App() {
         const data = await res.json();
         alert(data.error || 'Erro ao alternar status da loja');
       }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleToggleRecebePedidos = async (empresaId: string, loja: Loja) => {
+    try {
+      const res = await apiFetch(`${BACKEND_URL}/api/empresas/${empresaId}/lojas/${loja.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          recebePedidos: !loja.recebePedidos
+        })
+      });
+      if (res.ok) {
+        carregarLojas(empresaId);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Erro ao alternar recebimento de pedidos');
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const startEditLoja = (loja: Loja) => {
+    setEditingLoja(loja);
+    setEditLojaNome(loja.nome);
+    setEditLojaCnpj(loja.cnpj || '');
+    setEditLojaUsuario(loja.usuario);
+    setEditLojaSenha('');
+    setEditLojaEndereco(loja.endereco || '');
+    setEditLojaBairro(loja.bairro || '');
+    setEditLojaCidade(loja.cidade || '');
+    setEditLojaRecebePedidos(loja.recebePedidos || false);
+  };
+
+  const handleUpdateLoja = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLoja) return;
+    if (!editLojaNome.trim() || !editLojaUsuario.trim() || !editLojaCnpj.trim()) {
+      alert('Nome, CNPJ e usuário são obrigatórios');
+      return;
+    }
+
+    try {
+      const body: any = {
+        nome: editLojaNome,
+        cnpj: editLojaCnpj,
+        usuario: editLojaUsuario,
+        endereco: editLojaEndereco || undefined,
+        bairro: editLojaBairro || undefined,
+        cidade: editLojaCidade || undefined,
+        recebePedidos: editLojaRecebePedidos
+      };
+      if (editLojaSenha.trim()) {
+        body.senha = editLojaSenha;
+      }
+
+      const res = await apiFetch(`${BACKEND_URL}/api/empresas/${editingLoja.empresaId}/lojas/${editingLoja.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Erro ao editar loja');
+      }
+
+      setEditingLoja(null);
+      carregarLojas(editingLoja.empresaId);
+      carregarEmpresas();
+      alert('Loja atualizada com sucesso!');
     } catch (err: any) {
       alert(err.message);
     }
@@ -625,6 +713,14 @@ export default function App() {
   const drivers = tenantLojaId
     ? allDrivers.filter(d => d.lojaId === tenantLojaId)
     : allDrivers;
+
+  const currentLoja = tenantLojaId
+    ? Object.values(lojasDaEmpresa).flat().find(l => l.id === tenantLojaId)
+    : null;
+  const isRecebePedidosEnabled = sessao?.tipo === 'loja'
+    ? (sessao.recebePedidos || currentLoja?.recebePedidos || false)
+    : (sessao?.tipo === 'admin' && lojaVisualizada ? (currentLoja?.recebePedidos || false) : false);
+
   // Estados de logs e webhooks removidos
   // Controle de interface do painel
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
@@ -1868,6 +1964,38 @@ export default function App() {
     }
   };
 
+  const handlePrepararPedido = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await apiFetch(`${BACKEND_URL}/api/deliveries/${id}/prepare`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao preparar comanda');
+      }
+      alert(data.message || 'Pedido aceito e em preparação!');
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleFinalizarPedido = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await apiFetch(`${BACKEND_URL}/api/deliveries/${id}/finalize-order`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao finalizar comanda');
+      }
+      alert(data.message || 'Pedido finalizado e enviado para entrega!');
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleManualDispatch = async () => {
     if (!selectedDriverForDispatch) {
       alert('Por favor, selecione um entregador.');
@@ -2009,7 +2137,8 @@ export default function App() {
           address: `Av. Paulista, nº ${100 + Math.floor(Math.random() * 2000)}, São Paulo`,
           items: products[randomIdx],
           priority: priorities[randomIdx],
-          cargoType: types[randomIdx]
+          cargoType: types[randomIdx],
+          tipoComanda: 'entrega'
         })
       });
       
@@ -2019,6 +2148,36 @@ export default function App() {
       }
     } catch (err) {
       console.error('Erro ao criar entrega rápida:', err);
+    }
+  };
+
+  const triggerQuickOrder = async () => {
+    const clients = ['Lojas Americanas', 'Supermercado Extra', 'Farmácia Pague Menos', 'Hospital Albert Einstein', 'Lojas Renner'];
+    const products = [['Teclado Mecânico', 'Mouse Sem Fio'], ['Sorvete Kibon', 'Polpas Congeladas'], ['Medicamentos Controlados', 'Vacinas'], ['Materiais Cirúrgicos'], ['Jaqueta de Couro', 'Calça Jeans']];
+    const types: Array<'normal' | 'expressa' | 'agendado'> = ['normal', 'expressa', 'agendado', 'normal', 'expressa'];
+    const priorities: Array<'baixa' | 'media' | 'alta' | 'critica'> = ['media', 'alta', 'critica', 'baixa', 'media'];
+    
+    const randomIdx = Math.floor(Math.random() * clients.length);
+
+    try {
+      const response = await apiFetch(`${BACKEND_URL}/api/deliveries`, {
+        method: 'POST',
+        body: JSON.stringify({
+          clientName: clients[randomIdx],
+          address: `Av. Paulista, nº ${100 + Math.floor(Math.random() * 2000)}, São Paulo`,
+          items: products[randomIdx],
+          priority: priorities[randomIdx],
+          cargoType: types[randomIdx],
+          tipoComanda: 'pedido'
+        })
+      });
+      
+      if (response.ok) {
+        const newD = await response.json();
+        setSelectedDeliveryId(newD.id);
+      }
+    } catch (err) {
+      console.error('Erro ao criar comanda de pedido rápido:', err);
     }
   };
 
@@ -2635,6 +2794,18 @@ export default function App() {
                                 placeholder="São Paulo" 
                               />
                             </div>
+                            <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', height: '34px' }}>
+                              <input 
+                                type="checkbox" 
+                                id="novaLojaRecebePedidos"
+                                checked={novaLojaRecebePedidos} 
+                                onChange={e => setNovaLojaRecebePedidos(e.target.checked)} 
+                                style={{ accentColor: 'var(--color-cyan)', cursor: 'pointer', width: '15px', height: '15px' }}
+                              />
+                              <label htmlFor="novaLojaRecebePedidos" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 0 }}>
+                                Ativar Fila de Pedidos (WhatsApp)
+                              </label>
+                            </div>
                             <button type="submit" className="btn btn-success" style={{ height: '34px' }}>Salvar Loja</button>
                           </form>
                         </div>
@@ -2655,6 +2826,7 @@ export default function App() {
                                 <th>Usuário</th>
                                 <th>Endereço</th>
                                 <th>Chave de Acesso</th>
+                                <th>Fila de Pedidos</th>
                                 <th>Status</th>
                                 <th style={{ textAlign: 'right' }}>Ações</th>
                               </tr>
@@ -2708,6 +2880,16 @@ export default function App() {
                                     </div>
                                   </td>
                                   <td>
+                                    <span 
+                                      className={`badge-tenant ${loja.recebePedidos ? 'ativo' : 'inativo'}`}
+                                      style={{ cursor: 'pointer', border: loja.recebePedidos ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(156, 163, 175, 0.3)', background: loja.recebePedidos ? 'rgba(245, 158, 11, 0.08)' : 'rgba(156, 163, 175, 0.08)', color: loja.recebePedidos ? 'var(--color-amber)' : '#9ca3af' }}
+                                      onClick={() => handleToggleRecebePedidos(empresa.id, loja)}
+                                      title="Clique para alternar Fila de Pedidos"
+                                    >
+                                      {loja.recebePedidos ? 'Habilitada' : 'Desabilitada'}
+                                    </span>
+                                  </td>
+                                  <td>
                                     <span className={`badge-tenant ${loja.ativo ? 'ativo' : 'inativo'}`}>
                                       {loja.ativo ? 'Ativa' : 'Inativa'}
                                     </span>
@@ -2722,6 +2904,14 @@ export default function App() {
                                         title={(!loja.ativo || !empresa.ativo) ? 'Não é possível visualizar painel de loja ou empresa inativa' : 'Visualizar Dashboard'}
                                       >
                                         Painel
+                                      </button>
+                                      <button 
+                                        className="btn btn-small" 
+                                        style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', background: '#1f293d', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }}
+                                        onClick={() => startEditLoja(loja)}
+                                        title="Editar Informações da Loja"
+                                      >
+                                        Editar
                                       </button>
                                       <button 
                                         className="btn btn-small"
@@ -2761,6 +2951,108 @@ export default function App() {
             })
           )}
         </div>
+
+        {editingLoja && createPortal(
+          <div className="report-modal-overlay" onClick={() => setEditingLoja(null)}>
+            <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div className="report-modal-header">
+                <h2>Editar Informações da Loja</h2>
+                <button className="report-modal-close-btn" onClick={() => setEditingLoja(null)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="report-modal-body">
+                <form onSubmit={handleUpdateLoja} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Nome Fantasia</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaNome} 
+                      onChange={e => setEditLojaNome(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>CNPJ da Loja</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaCnpj} 
+                      onChange={e => setEditLojaCnpj(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Usuário de Acesso</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaUsuario} 
+                      onChange={e => setEditLojaUsuario(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Alterar Senha (deixe em branco para manter a atual)</label>
+                    <input 
+                      type="password" 
+                      className="form-input" 
+                      value={editLojaSenha} 
+                      onChange={e => setEditLojaSenha(e.target.value)} 
+                      placeholder="Nova senha da loja"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaEndereco} 
+                      onChange={e => setEditLojaEndereco(e.target.value)} 
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bairro</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={editLojaBairro} 
+                        onChange={e => setEditLojaBairro(e.target.value)} 
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cidade</label>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        value={editLojaCidade} 
+                        onChange={e => setEditLojaCidade(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="editLojaRecebePedidosMaster"
+                      checked={editLojaRecebePedidos} 
+                      onChange={e => setEditLojaRecebePedidos(e.target.checked)} 
+                      style={{ accentColor: 'var(--color-cyan)', cursor: 'pointer', width: '15px', height: '15px' }}
+                    />
+                    <label htmlFor="editLojaRecebePedidosMaster" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 0 }}>
+                      Ativar Fila de Pedidos (WhatsApp)
+                    </label>
+                  </div>
+                  <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem' }}>Salvar Alterações</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        , document.body)}
       </div>
     );
   }
@@ -2771,7 +3063,7 @@ export default function App() {
       {lojaVisualizada && (
         <div className="viewing-tenant-banner">
           <span className="viewing-tenant-text">
-            👁️ <strong>Modo Visualização:</strong> Você está visualizando o dashboard de <strong>{lojaVisualizada.nome}</strong> ({lojaVisualizada.nomeEmpresa}).
+            <strong>Modo Visualização:</strong> Você está visualizando o dashboard de <strong>{lojaVisualizada.nome}</strong> ({lojaVisualizada.nomeEmpresa}).
           </span>
           <button 
             className="btn btn-small" 
@@ -2821,6 +3113,9 @@ export default function App() {
           )}
         </div>
         <div className="header-actions">
+          {isRecebePedidosEnabled && (
+            <button className="btn btn-primary" onClick={triggerQuickOrder}>Gerar Pedido</button>
+          )}
           <button className="btn btn-success" onClick={triggerQuickDelivery}>Entrega Rápida</button>
           <button className="btn btn-danger" onClick={handleClearSimulation}>Limpar Dados</button>
           {!lojaVisualizada && (
@@ -2883,20 +3178,11 @@ export default function App() {
                 >
                   <option value="">Selecione o Entregador</option>
                   {drivers.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.status === 'ocioso' ? 'Disponível' : 'Em Rota'})
+                    <option key={d.id} value={d.id} disabled={!d.dispositivoConectado}>
+                      {d.name} ({!d.dispositivoConectado ? 'Offline' : d.status === 'ocioso' ? 'Disponível' : 'Em Rota'})
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  className="btn btn-primary btn-small"
-                  style={{ fontSize: '0.68rem', padding: '0.2rem 0.4rem' }}
-                  onClick={handleManualDispatch}
-                  disabled={!selectedDriverForDispatch}
-                >
-                  Liberar Entrega ({selectedRecebidas.length})
-                </button>
               </div>
             )}
             {selectedForManifest.length > 0 && (
@@ -2923,7 +3209,7 @@ export default function App() {
                   setSelectedForManifest([]);
                 }}
               >
-                Gerar Romaneio ({selectedForManifest.length})
+                Gerar Romaneios para Impressão e Liberar Entrega ({selectedForManifest.length})
               </button>
             )}
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -3045,72 +3331,219 @@ export default function App() {
           </div>
         )}
 
-        <div className="deliveries-horizontal-list">
-          {deliveries.length === 0 ? (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem', width: '100%' }}>
-              Nenhuma entrega cadastrada na simulação.
+        {isRecebePedidosEnabled ? (
+          <>
+            <div className="comandas-section-title font-mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-amber)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-amber)' }}></span>
+              Fila de Pedidos (WhatsApp / API)
             </div>
-          ) : (
-            [...deliveries]
-              .sort((a, b) => {
-                const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
-                const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
-                return dateB - dateA;
-              })
-              .map(d => (
-              <div 
-                key={d.id} 
-                className={`delivery-item-card ${selectedDeliveryId === d.id ? 'selected' : ''}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.8rem' }}
-                onClick={() => setSelectedDeliveryId(d.id)}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedForManifest.includes(d.id)}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    if (e.target.checked) {
-                      setSelectedForManifest(prev => [...prev, d.id]);
-                    } else {
-                      setSelectedForManifest(prev => prev.filter(id => id !== d.id));
-                    }
-                  }}
-                  style={{
-                    width: '13px',
-                    height: '13px',
-                    accentColor: 'var(--color-cyan)',
-                    border: '1px solid #1f293d',
-                    cursor: 'pointer',
-                    background: 'transparent'
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div className="card-title-row" style={{ gap: '0.4rem' }}>
-                    <span className="card-id font-mono">{d.id}</span>
-                    <span className={`card-badge ${d.status}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
-                      {getStatusText(d.status)}
-                    </span>
-                    {d.incidentes?.some(i => i.tipo === 'route_deviation' && i.descricao.includes('AlertaDesvioSequencia')) && (
-                      <span className="card-badge failed" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
-                        PULADA
-                      </span>
-                    )}
-                  </div>
-                  <div className="card-details" style={{ marginTop: '0.2rem' }}>
-                    <div>Cliente: {d.nomeCliente}</div>
-                    <div>Prioridade: {getPriorityText(d.prioridade)} | {getCargoTypeText(d.tipoCarga)}</div>
-                    <div style={{ color: 'var(--color-cyan)', fontSize: '0.68rem', marginTop: '0.15rem' }}>Valor: R$ {getDeliveryValue(d).toFixed(2)}</div>
-                    {d.motorista && (
-                      <div style={{ fontSize: '0.68rem', marginTop: '0.1rem', color: 'var(--text-secondary)' }}>
-                        Motoboy: <strong style={{ color: 'var(--text-primary)' }}>{d.motorista.name}</strong>
+            <div className="deliveries-horizontal-list" style={{ marginBottom: '1.2rem', minHeight: '80px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '1rem' }}>
+              {deliveries.filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE').length === 0 ? (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '1rem', width: '100%' }}>
+                  Nenhum pedido pendente na fila.
+                </div>
+              ) : (
+                [...deliveries]
+                  .filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE')
+                  .sort((e, t) => {
+                    const n = e.criadoEm ? new Date(e.criadoEm).getTime() : 0;
+                    const r = t.criadoEm ? new Date(t.criadoEm).getTime() : 0;
+                    return r - n;
+                  })
+                  .map(e => (
+                    <div 
+                      key={e.id}
+                      className={`delivery-item-card order-card ${selectedDeliveryId === e.id ? 'selected' : ''}`}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.75rem', minWidth: '280px', border: '1px solid rgba(245, 158, 11, 0.2)', background: 'rgba(245, 158, 11, 0.01)' }}
+                      onClick={() => setSelectedDeliveryId(e.id)}
+                    >
+                      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span className="card-id font-mono" style={{ color: 'var(--color-amber)' }}>{e.id}</span>
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                          <span className="card-badge" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-amber)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                            PEDIDO
+                          </span>
+                          <span className="card-badge" style={{ 
+                            fontSize: '0.55rem', 
+                            padding: '0.1rem 0.35rem', 
+                            borderRadius: '4px', 
+                            background: e.status === 'EM_PREPARO' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)', 
+                            color: e.status === 'EM_PREPARO' ? 'var(--color-blue)' : 'var(--color-amber)', 
+                            border: e.status === 'EM_PREPARO' ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
+                            textTransform: 'uppercase'
+                          }}>
+                            {e.status === 'EM_PREPARO' ? 'Preparando' : 'Recebido'}
+                          </span>
+                        </div>
                       </div>
-                    )}
+                      <div className="card-details" style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <div><strong>Cliente:</strong> {e.nomeCliente}</div>
+                        <div><strong>Itens:</strong> {e.itens && e.itens.length > 0 ? e.itens.join(', ') : 'Nenhum item'}</div>
+                        <div style={{ color: 'var(--color-amber)', fontWeight: 500, fontSize: '0.75rem', marginTop: '0.15rem' }}>
+                          Valor: R$ {getDeliveryValue(e).toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.endereco}
+                        </div>
+                      </div>
+                      {e.status === 'RECEBIDO' ? (
+                        <button 
+                          className="btn btn-primary btn-small"
+                          style={{ marginTop: '0.4rem', width: '100%', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-amber)', borderColor: 'var(--color-amber)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
+                          onClick={(t) => handlePrepararPedido(e.id, t)}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                          </svg>
+                          Aceitar e Preparar
+                        </button>
+                      ) : (
+                        <button 
+                          className="btn btn-success btn-small"
+                          style={{ marginTop: '0.4rem', width: '100%', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-emerald)', borderColor: 'var(--color-emerald)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
+                          onClick={(t) => handleFinalizarPedido(e.id, t)}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          Finalizar e Enviar para Entrega
+                        </button>
+                      )}
+                    </div>
+                  ))
+              )}
+            </div>
+
+            <div className="comandas-section-title font-mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-cyan)' }}></span>
+              Fila de Entregas (Despacho / Rota)
+            </div>
+            <div className="deliveries-horizontal-list">
+              {deliveries.filter(e => e.tipoComanda !== 'pedido').length === 0 ? (
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '1rem', width: '100%' }}>
+                  Nenhuma entrega cadastrada.
+                </div>
+              ) : (
+                [...deliveries]
+                  .filter(e => e.tipoComanda !== 'pedido')
+                  .sort((e, t) => {
+                    const n = e.criadoEm ? new Date(e.criadoEm).getTime() : 0;
+                    const r = t.criadoEm ? new Date(t.criadoEm).getTime() : 0;
+                    return n - r;
+                  })
+                  .map(d => (
+                    <div 
+                      key={d.id} 
+                      className={`delivery-item-card ${selectedDeliveryId === d.id ? 'selected' : ''}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.8rem', minWidth: '280px' }}
+                      onClick={() => setSelectedDeliveryId(d.id)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedForManifest.includes(d.id)}
+                        onChange={t => {
+                          t.stopPropagation();
+                          if (t.target.checked) {
+                            setSelectedForManifest(prev => [...prev, d.id]);
+                          } else {
+                            setSelectedForManifest(prev => prev.filter(id => id !== d.id));
+                          }
+                        }}
+                        style={{ width: '13px', height: '13px', accentColor: 'var(--color-cyan)', border: '1px solid #1f293d', cursor: 'pointer', background: 'transparent' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
+                        <div className="card-title-row">
+                          <span className="card-id font-mono">{d.id}</span>
+                          <span className={`card-badge ${d.status}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
+                            {getStatusText(d.status)}
+                          </span>
+                        </div>
+                        <div className="card-details" style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <div><strong>Cliente:</strong> {d.nomeCliente}</div>
+                          <div><strong>Endereço:</strong> {d.endereco}</div>
+                          <div style={{ color: 'var(--color-cyan)', fontWeight: 500, fontSize: '0.7rem' }}>
+                            <strong>Valor da comanda:</strong> R$ {getDeliveryValue(d).toFixed(2)}
+                          </div>
+                          {d.motorista && (
+                            <div style={{ fontSize: '0.68rem', marginTop: '0.1rem', color: 'var(--text-secondary)' }}>
+                              <strong>Motoboy:</strong> <strong style={{ color: 'var(--text-primary)' }}>{d.motorista.name}</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="deliveries-horizontal-list">
+            {deliveries.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem', width: '100%' }}>
+                Nenhuma entrega cadastrada na simulação.
+              </div>
+            ) : (
+              [...deliveries]
+                .sort((a, b) => {
+                  const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
+                  const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
+                  return dateB - dateA;
+                })
+                .map(d => (
+                <div 
+                  key={d.id} 
+                  className={`delivery-item-card ${selectedDeliveryId === d.id ? 'selected' : ''}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.8rem' }}
+                  onClick={() => setSelectedDeliveryId(d.id)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedForManifest.includes(d.id)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      if (e.target.checked) {
+                        setSelectedForManifest(prev => [...prev, d.id]);
+                      } else {
+                        setSelectedForManifest(prev => prev.filter(id => id !== d.id));
+                      }
+                    }}
+                    style={{
+                      width: '13px',
+                      height: '13px',
+                      accentColor: 'var(--color-cyan)',
+                      border: '1px solid #1f293d',
+                      cursor: 'pointer',
+                      background: 'transparent'
+                    }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div className="card-title-row" style={{ gap: '0.4rem' }}>
+                      <span className="card-id font-mono">{d.id}</span>
+                      <span className={`card-badge ${d.status}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
+                        {getStatusText(d.status)}
+                      </span>
+                      {d.incidentes?.some(i => i.tipo === 'route_deviation' && i.descricao.includes('AlertaDesvioSequencia')) && (
+                        <span className="card-badge failed" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
+                          PULADA
+                        </span>
+                      )}
+                    </div>
+                    <div className="card-details" style={{ marginTop: '0.2rem' }}>
+                      <div>Cliente: {d.nomeCliente}</div>
+                      <div>Prioridade: {getPriorityText(d.prioridade)} | {getCargoTypeText(d.tipoCarga)}</div>
+                      <div style={{ color: 'var(--color-cyan)', fontSize: '0.68rem', marginTop: '0.15rem' }}>Valor: R$ {getDeliveryValue(d).toFixed(2)}</div>
+                      {d.motorista && (
+                        <div style={{ fontSize: '0.68rem', marginTop: '0.1rem', color: 'var(--text-secondary)' }}>
+                          Motoboy: <strong style={{ color: 'var(--text-primary)' }}>{d.motorista.name}</strong>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        )}
       </section>
 
       {/* 4. Dashboard Main Body Grid */}
@@ -3422,14 +3855,14 @@ export default function App() {
                         }
                       }}
                     >
-                      🖨️ Bipar Código de Barras (Retorno ao Estoque)
+                      Bipar Código de Barras (Retorno ao Estoque)
                     </button>
                   </div>
                 )}
 
                 {selectedDelivery.status === 'PRODUTO_RETORNADO_ESTOQUE' && (
                   <div style={{ marginTop: '0.4rem', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '0.4rem', borderRadius: '6px', fontSize: '0.68rem' }}>
-                    <div style={{ color: 'var(--color-cyan)', fontWeight: 'bold' }}>✅ PEDIDO CANCELADO / DEVOLVIDO:</div>
+                    <div style={{ color: 'var(--color-cyan)', fontWeight: 'bold' }}>PEDIDO CANCELADO / DEVOLVIDO:</div>
                     <div style={{ color: 'var(--text-secondary)' }}>
                       Conferência física finalizada e saldo de produtos retornado ao estoque.
                     </div>
@@ -3441,7 +3874,7 @@ export default function App() {
                     <div style={{ fontSize: '0.65rem', color: 'var(--color-rose)', fontWeight: 'bold' }}>INCIDENTES ATIVOS:</div>
                     {selectedDelivery.incidentes.filter(i => !i.resolvido).map(i => (
                       <div key={i.id} style={{ fontSize: '0.65rem', marginTop: '0.1rem' }}>
-                        ❌ {i.descricao}
+                        {i.descricao}
                       </div>
                     ))}
                     <button 
@@ -3449,7 +3882,7 @@ export default function App() {
                       style={{ marginTop: '0.3rem', width: '100%', fontSize: '0.65rem', padding: '0.2rem' }}
                       onClick={() => handleResolveIncidents(selectedDelivery.id)}
                     >
-                      🛠️ Resolver Alertas
+                      Resolver Alertas
                     </button>
                   </div>
                 )}
@@ -3465,10 +3898,10 @@ export default function App() {
                         value={incidentType}
                         onChange={(e) => setIncidentType(e.target.value)}
                       >
-                        <option value="traffic_jam">🚦 Trânsito Intenso</option>
-                        <option value="flat_tire">🔧 Pneu Furado / Pane</option>
-                        <option value="temperature_spike">🔥 Quebra de Cadeia Fria</option>
-                        <option value="route_deviation">⚠️ Desvio de GPS</option>
+                        <option value="traffic_jam">Trânsito Intenso</option>
+                        <option value="flat_tire">Pneu Furado / Pane</option>
+                        <option value="temperature_spike">Quebra de Cadeia Fria</option>
+                        <option value="route_deviation">Desvio de GPS</option>
                       </select>
                       <div style={{ display: 'flex', gap: '0.2rem' }}>
                         <button 
@@ -3498,8 +3931,8 @@ export default function App() {
               </div>
             ) : (
               <div className="operator-control-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', minHeight: '380px' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '1rem', opacity: 0.3 }}>🛰️</div>
-                Selecione uma comanda ativa na listagem acima ou uma entrega no mapa para carregar a telemetria em tempo real do operador.
+                <div style={{ fontSize: '2.5rem', marginBottom: '1rem', opacity: 0.3 }}>Telemetria</div>
+                Selecione uma comanda active na listagem acima ou uma entrega no mapa para carregar a telemetria em tempo real do operador.
               </div>
             )}
 
@@ -3512,7 +3945,7 @@ export default function App() {
                     <div className="phone-notch"></div>
                     <div className="phone-signals">
                       <span className={`signal-indicator ${offlineMode ? 'offline' : 'online'}`}>
-                        {offlineMode ? '📶❌ Sem sinal' : '📶 5G'}
+                        {offlineMode ? 'Sem sinal' : '5G'}
                       </span>
                     </div>
                   </div>
@@ -3522,7 +3955,7 @@ export default function App() {
                       /* Tela de Pareamento por PIN */
                       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                         <div className="phone-app-header">
-                          <h4>📦 Entregador Mobile</h4>
+                          <h4>Entregador Mobile</h4>
                         </div>
                         <form onSubmit={handleVincularDriverMobile} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1rem 0.5rem', flex: 1, justifyContent: 'center' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: '1.1rem' }}>
@@ -3717,7 +4150,7 @@ export default function App() {
                                     }}
                                     onClick={() => handleDriverArrive(entregaAtivaMobile.id)}
                                   >
-                                    📍 Confirmar Chegada ao Local
+                                    Confirmar Chegada ao Local
                                   </button>
                                 </div>
                               ) : entregaAtivaMobile.status === 'NO_LOCAL' ? (
@@ -3823,12 +4256,12 @@ export default function App() {
                                     style={{ padding: '0.4rem', fontSize: '0.7rem' }}
                                     onClick={() => handleDriverFail(entregaAtivaMobile.id)}
                                   >
-                                    ❌ Reportar Insucesso / Devolução
+                                    Reportar Insucesso / Devolução
                                   </button>
                                 </div>
                               ) : (
                                 <div className="phone-status-msg" style={{ fontSize: '0.7rem', textAlign: 'center', padding: '0.5rem', background: '#0f172a', borderRadius: '6px' }}>
-                                  🎉 Ciclo finalizado!<br />
+                                  Ciclo finalizado!<br />
                                   Resultado: <strong>{getStatusText(entregaAtivaMobile.status)}</strong>
                                   {((entregaAtivaMobile.status === 'ENTREGUE' || entregaAtivaMobile.status === 'AGUARDANDO_RETORNO_CD') && isWithinGeofenceMobile) && (
                                     <button
@@ -3836,7 +4269,7 @@ export default function App() {
                                       style={{ marginTop: '0.6rem', fontSize: '0.65rem', backgroundColor: 'var(--color-amber)', color: '#000', width: '100%', border: 'none', borderRadius: '4px', padding: '0.3rem', cursor: 'pointer', fontWeight: 'bold' }}
                                       onClick={() => handleUndo(entregaAtivaMobile.id)}
                                     >
-                                      ↩️ Desfazer Última Ação (60s)
+                                      Desfazer Última Ação (60s)
                                     </button>
                                   )}
                                 </div>
@@ -3846,7 +4279,7 @@ export default function App() {
                             /* Caso não tenha entrega associada ao motoboy pareado */
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.4rem', textAlign: 'left' }}>
                               <div style={{ fontSize: '0.72rem', textAlign: 'center', padding: '1.2rem 0.5rem', background: '#0f172a', borderRadius: '8px', color: 'var(--color-emerald)', border: '1px dashed rgba(16, 185, 129, 0.2)' }}>
-                                <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>🟢</div>
+                                <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}></div>
                                 <strong>Online & Disponível</strong>
                                 <p style={{ fontSize: '0.62rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
                                   Aguardando nova comanda ser atribuída pela Loja...
@@ -3957,8 +4390,8 @@ export default function App() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className={`card-badge ${d.status === 'ocioso' ? 'completed' : 'failed'}`} style={{ textTransform: 'capitalize', fontSize: '0.7rem' }}>
-                      {d.status === 'ocioso' ? 'Disponível' : 'Em Rota'}
+                    <span className={`card-badge ${!d.dispositivoConectado ? 'offline' : d.status === 'ocioso' ? 'completed' : 'failed'}`} style={{ textTransform: 'capitalize', fontSize: '0.7rem' }}>
+                      {!d.dispositivoConectado ? 'Offline' : d.status === 'ocioso' ? 'Disponível' : 'Em Rota'}
                     </span>
                     <button 
                       className="icon-btn danger" 
@@ -4146,34 +4579,6 @@ export default function App() {
               </svg>
               Cadastrar Tipo de Veículo
             </button>
-            {/* 
-            <button 
-              className="fab-menu-item" 
-              onClick={() => {
-                setFabOpen(false);
-                const btn = document.querySelector('.external-channel-sync button') as HTMLButtonElement;
-                if (btn) btn.click();
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-              </svg>
-              Sincronizar Pedidos
-            </button>
-            <button 
-              className="fab-menu-item" 
-              style={{ color: 'var(--color-rose)' }}
-              onClick={() => {
-                setFabOpen(false);
-                handleClearSimulation();
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-              </svg>
-              Limpar Simulação
-            </button>
-            */}
           </div>
         )}
         <button 
@@ -4573,7 +4978,7 @@ export default function App() {
                             return (
                               <div key={r.bairro} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>📍 {r.bairro}</span>
+                                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.bairro}</span>
                                   <span style={{ color: 'var(--text-secondary)' }}>
                                     <strong>{r.total}</strong> comandas ({r.sucesso} OK / {r.cancelado} Falhas) | <strong style={{ color: 'var(--color-cyan)' }}>R$ {r.faturamento.toFixed(2)}</strong>
                                   </span>
@@ -4698,28 +5103,24 @@ export default function App() {
                       
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
                         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.5rem' }}>🚗</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Trânsito Intenso</span>
                             <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.traffic_jam} ocorrências</strong>
                           </div>
                         </div>
                         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.5rem' }}>🔧</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Problemas no Veículo</span>
                             <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.flat_tire} ocorrências</strong>
                           </div>
                         </div>
                         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.5rem' }}>❄️</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Alerta de Temperatura</span>
                             <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.temperature_spike} ocorrências</strong>
                           </div>
                         </div>
                         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-thin)', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                          <span style={{ fontSize: '1.5rem' }}>↪️</span>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Desvios de Rota</span>
                             <strong style={{ fontSize: '1.2rem', color: 'var(--color-rose)' }}>{incidentesTiposCount.route_deviation} ocorrências</strong>
@@ -4728,7 +5129,6 @@ export default function App() {
                       </div>
 
                       <div style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '8px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                        <span style={{ color: 'var(--color-emerald)', fontSize: '1.1rem' }}>🟢</span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
                           {totalIncidentes === 0 ? 'Excelente! Zero incidentes de rota registrados no período selecionado.' : `Registrados ${totalIncidentes} incidentes/exceções no período.`}
                         </span>
@@ -4796,11 +5196,11 @@ export default function App() {
                         padding: '0.1rem 0.3rem', 
                         borderRadius: '4px',
                         marginLeft: '0.25rem',
-                        background: d.status === 'ocioso' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
-                        color: d.status === 'ocioso' ? 'var(--color-emerald)' : 'var(--color-rose)',
+                        background: !d.dispositivoConectado ? 'rgba(156, 163, 175, 0.08)' : d.status === 'ocioso' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)',
+                        color: !d.dispositivoConectado ? '#9ca3af' : d.status === 'ocioso' ? 'var(--color-emerald)' : 'var(--color-rose)',
                         textTransform: 'capitalize'
                       }}>
-                        {d.status === 'ocioso' ? 'disponível' : 'em rota'}
+                        {!d.dispositivoConectado ? 'offline' : d.status === 'ocioso' ? 'disponível' : 'em rota'}
                       </span>
                     </span>
                     <button 
@@ -4948,6 +5348,108 @@ export default function App() {
                     + Incluir
                   </button>
                 </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {editingLoja && createPortal(
+        <div className="report-modal-overlay" onClick={() => setEditingLoja(null)}>
+          <div className="report-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="report-modal-header">
+              <h2>Editar Informações da Loja</h2>
+              <button className="report-modal-close-btn" onClick={() => setEditingLoja(null)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="report-modal-body">
+              <form onSubmit={handleUpdateLoja} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Nome Fantasia</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editLojaNome} 
+                    onChange={e => setEditLojaNome(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>CNPJ da Loja</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editLojaCnpj} 
+                    onChange={e => setEditLojaCnpj(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Usuário de Acesso</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editLojaUsuario} 
+                    onChange={e => setEditLojaUsuario(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Alterar Senha (deixe em branco para manter a atual)</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    value={editLojaSenha} 
+                    onChange={e => setEditLojaSenha(e.target.value)} 
+                    placeholder="Nova senha da loja"
+                  />
+                </div>
+                <div className="form-group">
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={editLojaEndereco} 
+                    onChange={e => setEditLojaEndereco(e.target.value)} 
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bairro</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaBairro} 
+                      onChange={e => setEditLojaBairro(e.target.value)} 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cidade</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={editLojaCidade} 
+                      onChange={e => setEditLojaCidade(e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <input 
+                    type="checkbox" 
+                    id="editLojaRecebePedidos"
+                    checked={editLojaRecebePedidos} 
+                    onChange={e => setEditLojaRecebePedidos(e.target.checked)} 
+                    style={{ accentColor: 'var(--color-cyan)', cursor: 'pointer', width: '15px', height: '15px' }}
+                  />
+                  <label htmlFor="editLojaRecebePedidos" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', cursor: 'pointer', marginBottom: 0 }}>
+                    Ativar Fila de Pedidos (WhatsApp)
+                  </label>
+                </div>
+                <button type="submit" className="btn btn-success" style={{ width: '100%', marginTop: '0.5rem' }}>Salvar Alterações</button>
               </form>
             </div>
           </div>

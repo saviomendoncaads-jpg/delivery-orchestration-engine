@@ -1,15 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { deliveries, gerarIdComanda } from './gateway';
-import { salvarEntrega } from './database';
+import { salvarEntrega, obterProdutos } from './database';
 import { broker } from './broker';
 import { lojas } from './tenants';
-import { Entrega, Prioridade, TipoCarga, StatusEntrega, FormaPagamento } from './types';
+import { Entrega, Prioridade, TipoCarga, StatusEntrega, FormaPagamento, Produto } from './types';
+
+export interface CarrinhoItem {
+  produtoId: string;
+  nome: string;
+  quantidade: number;
+  precoUnitario: number;
+}
 
 export interface WhatsappSession {
   phone: string;
-  state: 'WELCOME' | 'NAME' | 'ITEMS' | 'ADDRESS' | 'PAYMENT' | 'CONFIRM' | 'COMPLETED';
+  state: 'WELCOME' | 'NAME' | 'ITEMS' | 'QUANTITY' | 'ADD_MORE' | 'CEP' | 'ADDRESS_NUMBER' | 'ADDRESS_MANUAL' | 'PAYMENT' | 'CONFIRM' | 'COMPLETED';
   nomeCliente?: string;
-  itens?: string[];
+  carrinho?: CarrinhoItem[];
+  tempProdutoSelecionado?: Produto;
+  cep?: string;
   endereco?: string;
   bairro?: string;
   cidade?: string;
@@ -43,7 +52,9 @@ class WhatsappBotService {
       if (cleanInput === 'cancelar' && session.state !== 'WELCOME') {
         session.state = 'WELCOME';
         session.nomeCliente = undefined;
-        session.itens = undefined;
+        session.carrinho = undefined;
+        session.tempProdutoSelecionado = undefined;
+        session.cep = undefined;
         session.endereco = undefined;
         session.bairro = undefined;
         session.cidade = undefined;
@@ -68,27 +79,96 @@ class WhatsappBotService {
           }
           session.nomeCliente = input;
           session.state = 'ITEMS';
-          return `Prazer em te conhecer, *${session.nomeCliente}*! 😊\n\nAgora, digite os **itens do seu pedido** (separe por vírgula se for mais de um):\n_Exemplo: 1x Pizza Portuguesa, 1x Coca-cola lata_`;
+          const products = await obterProdutos(lojaId);
+          return `Prazer em te conhecer, *${session.nomeCliente}*! 😊\n\nSelecione um produto do nosso cardápio digitando o **número** correspondente:\n\n` +
+            products.map((p, idx) => `${idx + 1}️⃣ - *${p.nome}* - R$ ${p.preco.toFixed(2)}`).join('\n');
 
-        case 'ITEMS':
-          if (input.length < 3) {
-            return `Por favor, descreva os itens do seu pedido:`;
+        case 'ITEMS': {
+          const products = await obterProdutos(lojaId);
+          const idx = parseInt(cleanInput) - 1;
+          if (isNaN(idx) || idx < 0 || idx >= products.length) {
+            return `⚠️ Opção inválida. Por favor, selecione um produto digitando o número correspondente:\n\n` +
+              products.map((p, i) => `${i + 1}️⃣ - *${p.nome}* - R$ ${p.preco.toFixed(2)}`).join('\n');
           }
-          session.itens = input.split(',').map(i => i.trim());
-          session.state = 'ADDRESS';
-          return `Anotado! 📝\n\nAgora, por favor digite o **endereço de entrega completo** separado por vírgulas no formato abaixo:\n\n**Rua, Número, Bairro, Cidade**\n\n_Exemplo: Av. Paulista, 945, Bela Vista, São Paulo_`;
+          const selectedProd = products[idx];
+          session.tempProdutoSelecionado = selectedProd;
+          session.state = 'QUANTITY';
+          return `Você selecionou: *${selectedProd.nome}* (R$ ${selectedProd.preco.toFixed(2)})\n\nDigite a **quantidade** desejada (apenas números):`;
+        }
 
-        case 'ADDRESS':
+        case 'QUANTITY': {
+          const qty = parseInt(cleanInput);
+          if (isNaN(qty) || qty <= 0) {
+            return `⚠️ Quantidade inválida. Por favor, digite um número inteiro maior que 0:`;
+          }
+          if (!session.carrinho) {
+            session.carrinho = [];
+          }
+          const prod = session.tempProdutoSelecionado!;
+          session.carrinho.push({
+            produtoId: prod.id,
+            nome: prod.nome,
+            quantidade: qty,
+            precoUnitario: prod.preco
+          });
+          session.tempProdutoSelecionado = undefined;
+          session.state = 'ADD_MORE';
+          return `Adicionado com sucesso! 🛒\n\nDeseja adicionar mais algum item?\n\n1️⃣ - Sim, ver cardápio\n2️⃣ - Não, finalizar pedido`;
+        }
+
+        case 'ADD_MORE':
+          if (cleanInput === '1' || cleanInput.includes('sim')) {
+            const products = await obterProdutos(lojaId);
+            session.state = 'ITEMS';
+            return `Selecione outro produto do nosso cardápio digitando o número correspondente:\n\n` +
+              products.map((p, i) => `${i + 1}️⃣ - *${p.nome}* - R$ ${p.preco.toFixed(2)}`).join('\n');
+          } else if (cleanInput === '2' || cleanInput.includes('nao') || cleanInput.includes('não') || cleanInput.includes('finalizar')) {
+            session.state = 'CEP';
+            return `Perfeito! Para entregarmos seu pedido, por favor digite o seu **CEP** (apenas os 8 números, ex: 52050000):`;
+          } else {
+            return `Por favor, selecione uma opção válida:\n\n1️⃣ - Sim, ver cardápio\n2️⃣ - Não, finalizar pedido`;
+          }
+
+        case 'CEP': {
+          const cep = cleanInput.replace(/\D/g, '');
+          if (cep.length !== 8) {
+            return `⚠️ CEP inválido. O CEP deve conter exatamente 8 dígitos (ex: 52050000). Por favor, tente novamente:`;
+          }
+          try {
+            const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const data = (await res.json()) as any;
+            if (data.erro) {
+              session.state = 'ADDRESS_MANUAL';
+              return `⚠️ CEP não localizado no banco de dados da ViaCEP.\n\nPor favor, digite seu **endereço completo manualmente** (Rua, Número, Bairro, Cidade):`;
+            }
+            session.cep = cep;
+            session.endereco = data.logradouro;
+            session.bairro = data.bairro;
+            session.cidade = data.localidade;
+            session.state = 'ADDRESS_NUMBER';
+            return `Encontrei o endereço! 📍\n*${data.logradouro}, ${data.bairro} - ${data.localidade}/${data.uf}*\n\nPor favor, informe agora o **Número** da residência e algum **Ponto de Referência / Complemento** (ex: Número 123, apto 402):`;
+          } catch (err) {
+            session.state = 'ADDRESS_MANUAL';
+            return `⚠️ Ocorreu uma lentidão ao consultar o CEP online. Por favor, digite seu **endereço completo manualmente** (Rua, Número, Bairro, Cidade):`;
+          }
+        }
+
+        case 'ADDRESS_NUMBER':
+          session.endereco = `${session.endereco}, ${input}`;
+          session.state = 'PAYMENT';
+          return `Endereço registrado! 📍\n\nComo deseja realizar o **pagamento**? Digite o número correspondente:\n\n1️⃣ - Pix\n2️⃣ - Cartão (Maquininha)\n3️⃣ - Dinheiro`;
+
+        case 'ADDRESS_MANUAL': {
           const parts = input.split(',').map(p => p.trim());
           if (parts.length < 3) {
             return `⚠️ Endereço incompleto. Por favor, tente digitar no formato:\n**Rua, Número, Bairro, Cidade** (separados por vírgula).`;
           }
           session.endereco = `${parts[0]}, ${parts[1]}`;
           session.bairro = parts[2] || 'Centro';
-          session.cidade = parts[3] || 'Abreu e Lima';
-          
+          session.cidade = parts[3] || 'Cidade';
           session.state = 'PAYMENT';
           return `Endereço registrado! 📍\n\nComo deseja realizar o **pagamento**? Digite o número correspondente:\n\n1️⃣ - Pix\n2️⃣ - Cartão (Maquininha)\n3️⃣ - Dinheiro`;
+        }
 
         case 'PAYMENT':
           if (cleanInput === '1' || cleanInput.includes('pix')) {
@@ -101,29 +181,34 @@ class WhatsappBotService {
             return `Por favor, selecione uma opção válida:\n1️⃣ - Pix\n2️⃣ - Cartão (Maquininha)\n3️⃣ - Dinheiro`;
           }
 
-          // Calcula valores simulados
-          session.valor = Math.round((25 + Math.random() * 60) * 100) / 100;
-          const total = session.valor + 5.00; // R$ 5,00 taxa fixa de entrega
+          // Calcula valores reais com base no carrinho
+          const subtotal = session.carrinho?.reduce((sum, item) => sum + (item.precoUnitario * item.quantidade), 0) || 0;
+          const taxaEntrega = 5.00; // Taxa de entrega fixa
+          const total = subtotal + taxaEntrega;
+          session.valor = total;
 
           session.state = 'CONFIRM';
           const fpLabel = session.formaPagamento === 'pix' ? 'PIX' : session.formaPagamento === 'maquininha' ? 'Cartão (Maquininha)' : 'Dinheiro';
-          return `Perfeito! Veja o **resumo do seu pedido** antes de finalizarmos:\n\n👤 *Cliente:* ${session.nomeCliente}\n📦 *Itens:* ${session.itens?.join(', ')}\n📍 *Entrega:* ${session.endereco}, ${session.bairro} - ${session.cidade}\n💳 *Pagamento:* ${fpLabel}\n💵 *Produtos:* R$ ${session.valor.toFixed(2)}\n🚚 *Taxa de Entrega:* R$ 5.00\n💰 *Total:* R$ ${total.toFixed(2)}\n\nConfirma o pedido? Digite **SIM** para finalizar ou **CANCELAR** para reiniciar.`;
+          const itensStr = session.carrinho?.map(item => `${item.quantidade}x *${item.nome}* (R$ ${(item.precoUnitario * item.quantidade).toFixed(2)})`).join('\n- ');
+
+          return `Perfeito! Veja o **resumo do seu pedido** antes de finalizarmos:\n\n👤 *Cliente:* ${session.nomeCliente}\n🛒 *Itens:*\n- ${itensStr}\n📍 *Entrega:* ${session.endereco}, ${session.bairro} - ${session.cidade} ${session.cep ? '(CEP: ' + session.cep + ')' : ''}\n💳 *Pagamento:* ${fpLabel}\n💵 *Subtotal:* R$ ${subtotal.toFixed(2)}\n🚚 *Taxa de Entrega:* R$ ${taxaEntrega.toFixed(2)}\n💰 *Total:* R$ ${total.toFixed(2)}\n\nConfirma o pedido? Digite **SIM** para finalizar ou **CANCELAR** para reiniciar.`;
 
         case 'CONFIRM':
           if (cleanInput === 'sim') {
             // Cria a comanda no sistema
             const id = gerarIdComanda();
-            const totalVal = session.valor || 35.00;
-            
+            const lojaObj = lojas.find(l => l.id === session.lojaId);
+            const recebePedidos = lojaObj ? lojaObj.recebePedidos : false;
+
             const newDelivery: Entrega = {
               id,
               nomeCliente: session.nomeCliente || 'Cliente WhatsApp',
               endereco: session.endereco || 'Endereço WhatsApp',
-              itens: session.itens || [],
+              itens: session.carrinho?.map(item => `${item.quantidade}x ${item.nome}`) || [],
               prioridade: 'media' as Prioridade,
               tipoCarga: 'normal' as TipoCarga,
               status: 'RECEBIDO' as StatusEntrega,
-              valor: totalVal,
+              valor: session.valor,
               incidentes: [],
               urlWebhook: 'http://localhost:5000/api/simulator/webhook',
               logsWebhook: [],
@@ -133,28 +218,34 @@ class WhatsappBotService {
               bairro: session.bairro,
               cidade: session.cidade,
               referencia: 'Pedido WhatsApp (Bot)',
-              lojaId: session.lojaId
+              lojaId: session.lojaId,
+              tipoComanda: recebePedidos ? 'pedido' : 'entrega'
             };
 
             // Salva no banco de dados local e insere no gateway
             deliveries.set(id, newDelivery);
             await salvarEntrega(newDelivery);
 
-            // Publica o evento para orquestração automática do dispatcher
-            broker.publish('entrega.recebida', id, {
-              deliveryId: id,
-              cargoType: newDelivery.tipoCarga,
-              priority: newDelivery.prioridade,
-              clientName: newDelivery.nomeCliente,
-              address: newDelivery.endereco,
-              x: 40 + Math.floor(Math.random() * 55),
-              y: 40 + Math.floor(Math.random() * 55)
-            });
+            // Publica o evento para orquestração automática do dispatcher se for entrega direta
+            if (!recebePedidos) {
+              broker.publish('entrega.recebida', id, {
+                deliveryId: id,
+                cargoType: newDelivery.tipoCarga,
+                priority: newDelivery.prioridade,
+                clientName: newDelivery.nomeCliente,
+                address: newDelivery.endereco,
+                x: 40 + Math.floor(Math.random() * 55),
+                y: 40 + Math.floor(Math.random() * 55)
+              });
+            }
+
 
             // Reset da sessão
             session.state = 'WELCOME';
             session.nomeCliente = undefined;
-            session.itens = undefined;
+            session.carrinho = undefined;
+            session.tempProdutoSelecionado = undefined;
+            session.cep = undefined;
             session.endereco = undefined;
             session.bairro = undefined;
             session.cidade = undefined;

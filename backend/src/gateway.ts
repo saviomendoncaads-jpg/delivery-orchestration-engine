@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { broker } from './broker';
 import { Entrega, Motorista, StatusEntrega, Prioridade, TipoCarga, FormaPagamento, LogWebhook, Incidente, TipoVeiculo } from './types';
-import { salvarEntrega, obterEntregas, obterMotoristas, salvarMotorista, deletarMotorista, obterTiposVeiculos, salvarTipoVeiculo } from './database';
+import { salvarEntrega, obterEntregas, obterMotoristas, salvarMotorista, deletarMotorista, obterTiposVeiculos, salvarTipoVeiculo, obterProdutos } from './database';
 import { obterSessaoDoRequest } from './auth';
 import { lojas, empresas } from './tenants';
 import { autoDispatchSettings } from './config';
@@ -289,10 +289,13 @@ router.post('/deliveries', async (req: Request, res: Response) => {
   let lojaId: string | undefined;
   let nomeLoja: string | undefined;
   let nomeEmpresa: string | undefined;
+  let recebePedidos = false;
   if (sessao?.tipo === 'loja' && sessao.lojaId) {
     lojaId = sessao.lojaId;
     nomeLoja = sessao.nomeLoja;
     nomeEmpresa = sessao.nomeEmpresa;
+    const lojaObj = lojas.find(l => l.id === lojaId);
+    recebePedidos = lojaObj ? (lojaObj.recebePedidos || false) : false;
   }
 
   const newDelivery: Entrega = {
@@ -317,6 +320,7 @@ router.post('/deliveries', async (req: Request, res: Response) => {
     lojaId,
     nomeLoja,
     nomeEmpresa,
+    tipoComanda: req.body.tipoComanda || (recebePedidos ? 'pedido' : 'entrega')
   };
 
   deliveries.set(id, newDelivery);
@@ -324,17 +328,19 @@ router.post('/deliveries', async (req: Request, res: Response) => {
   // Persiste no SQL Server
   await salvarEntrega(newDelivery);
 
-  // Publica o evento: entrega.recebida
-  broker.publish('entrega.recebida', id, {
-    deliveryId: id,
-    cargoType: newDelivery.tipoCarga,
-    priority: newDelivery.prioridade,
-    clientName: newDelivery.nomeCliente,
-    address: newDelivery.endereco,
-    driverId: driverId || undefined,
-    x: x !== undefined ? Number(x) : undefined,
-    y: y !== undefined ? Number(y) : undefined
-  });
+  // Publica o evento se não for do tipo pedido
+  if (newDelivery.tipoComanda !== 'pedido') {
+    broker.publish('entrega.recebida', id, {
+      deliveryId: id,
+      cargoType: newDelivery.tipoCarga,
+      priority: newDelivery.prioridade,
+      clientName: newDelivery.nomeCliente,
+      address: newDelivery.endereco,
+      driverId: driverId || undefined,
+      x: x !== undefined ? Number(x) : undefined,
+      y: y !== undefined ? Number(y) : undefined
+    });
+  }
 
   res.status(201).json(newDelivery);
 });
@@ -955,6 +961,15 @@ router.post('/simulator/import-external', async (req: Request, res: Response) =>
   }
 
   try {
+    const sessao = obterSessaoDoRequest(req);
+    let lojaId: string | undefined;
+    let recebePedidos = false;
+    if (sessao?.tipo === 'loja' && sessao.lojaId) {
+      lojaId = sessao.lojaId;
+      const lojaObj = lojas.find(l => l.id === lojaId);
+      recebePedidos = lojaObj ? (lojaObj.recebePedidos || false) : false;
+    }
+
     const response = await fetch(url);
     if (!response.ok) {
       res.status(response.status).json({ error: `Erro ao buscar pedidos na API externa: HTTP ${response.status}` });
@@ -999,19 +1014,23 @@ router.post('/simulator/import-external', async (req: Request, res: Response) =>
         atualizadoEm: new Date().toISOString(),
         formaPagamento: (ord.forma_pgto === 'pix' ? 'pix' : ord.forma_pgto === 'dinheiro' ? 'dinheiro' : 'maquininha') as FormaPagamento,
         bairro: ord.bairro_destino || undefined,
-        referencia: `Importado (${ord.id_pedido_externo || 'Sem ID'})`
+        referencia: `Importado (${ord.id_pedido_externo || 'Sem ID'})`,
+        lojaId,
+        tipoComanda: recebePedidos ? 'pedido' : 'entrega'
       };
 
       deliveries.set(id, newDelivery);
       await salvarEntrega(newDelivery);
 
-      broker.publish('entrega.recebida', id, {
-        deliveryId: id,
-        cargoType: newDelivery.tipoCarga,
-        priority: newDelivery.prioridade,
-        clientName: newDelivery.nomeCliente,
-        address: newDelivery.endereco
-      });
+      if (!recebePedidos) {
+        broker.publish('entrega.recebida', id, {
+          deliveryId: id,
+          cargoType: newDelivery.tipoCarga,
+          priority: newDelivery.prioridade,
+          clientName: newDelivery.nomeCliente,
+          address: newDelivery.endereco
+        });
+      }
 
       importedIds.push(id);
     }
@@ -1069,4 +1088,162 @@ export async function checarDesvioSequencia(e: Entrega) {
   }
 }
 
+router.get('/produtos', async (req: Request, res: Response) => {
+  try {
+    const { lojaId } = req.query;
+    const produtos = await obterProdutos(lojaId as string);
+    res.json(produtos);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/pedidos-whatsapp', async (req: Request, res: Response) => {
+  try {
+    const { lojaId, cliente, pedido, entrega, pagamento } = req.body;
+    if (!lojaId || !cliente?.nome || !pedido?.itens || !entrega?.endereco) {
+      res.status(400).json({ error: 'Campos obrigatórios ausentes no payload.' });
+      return;
+    }
+
+    const lojaObj = lojas.find(l => l.id === lojaId);
+    const recebePedidos = lojaObj ? lojaObj.recebePedidos : false;
+
+    const id = gerarIdComanda();
+    const newDelivery: Entrega = {
+      id,
+      nomeCliente: cliente.nome,
+      endereco: `${entrega.endereco}${entrega.complemento ? ', ' + entrega.complemento : ''}`,
+      itens: pedido.itens.map((it: any) => `${it.quantidade}x ${it.nome}`),
+      prioridade: 'media',
+      tipoCarga: 'normal',
+      status: 'RECEBIDO',
+      valor: pedido.valores?.total || 0,
+      incidentes: [],
+      urlWebhook: 'http://localhost:5000/api/simulator/webhook',
+      logsWebhook: [],
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+      formaPagamento: (pagamento?.metodo === 'pix' ? 'pix' : pagamento?.metodo === 'dinheiro' ? 'dinheiro' : 'maquininha') as FormaPagamento,
+      bairro: entrega.bairro,
+      cidade: entrega.cidade,
+      referencia: entrega.referencia || 'Pedido WhatsApp (Bot)',
+      lojaId,
+      tipoComanda: recebePedidos ? 'pedido' : 'entrega'
+    };
+
+    deliveries.set(id, newDelivery);
+    await salvarEntrega(newDelivery);
+
+    if (!recebePedidos) {
+      broker.publish('entrega.recebida', id, {
+        deliveryId: id,
+        cargoType: newDelivery.tipoCarga,
+        priority: newDelivery.prioridade,
+        clientName: newDelivery.nomeCliente,
+        address: newDelivery.endereco,
+        x: 40 + Math.floor(Math.random() * 55),
+        y: 40 + Math.floor(Math.random() * 55)
+      });
+    }
+
+    res.status(201).json({ success: true, deliveryId: id });
+  } catch (err: any) {
+    console.error('[Gateway] Erro ao processar pedido recebido do WhatsApp:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/deliveries/:id/prepare', async (req: Request, res: Response) => {
+  try {
+    const order = deliveries.get(req.params.id as string);
+    if (!order) {
+      res.status(404).json({ error: 'Pedido não encontrado.' });
+      return;
+    }
+    if (order.tipoComanda !== 'pedido') {
+      res.status(400).json({ error: 'Esta comanda não é do tipo pedido.' });
+      return;
+    }
+    if (order.status !== 'RECEBIDO') {
+      res.status(400).json({ error: 'O pedido só pode ser preparado se estiver no status RECEBIDO.' });
+      return;
+    }
+
+    order.status = 'EM_PREPARO' as any;
+    order.atualizadoEm = new Date().toISOString();
+    await salvarEntrega(order);
+
+    broker.publish('entrega.monitorada', order.id, {
+      deliveryId: order.id,
+      status: 'EM_PREPARO',
+      telemetria: order.telemetria,
+      incidents: order.incidentes
+    });
+
+    res.json({ success: true, message: 'Pedido movido para preparo.', order });
+  } catch (err: any) {
+    console.error('[Gateway] Erro ao mover comanda de pedido para preparo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/deliveries/:id/finalize-order', async (req: Request, res: Response) => {
+  try {
+    const order = deliveries.get(req.params.id as string);
+    if (!order) {
+      res.status(404).json({ error: 'Pedido não encontrado.' });
+      return;
+    }
+    if (order.tipoComanda !== 'pedido') {
+      res.status(400).json({ error: 'Esta comanda não é do tipo pedido.' });
+      return;
+    }
+
+    // 1. Atualiza o status do pedido para finalizado (usamos status ENTREGUE/sucesso para controle interno)
+    order.status = 'ENTREGUE';
+    order.atualizadoEm = new Date().toISOString();
+    await salvarEntrega(order);
+
+    // 2. Cria uma nova comanda de entrega vinculada
+    const deliveryId = gerarIdComanda();
+    const newDelivery: Entrega = {
+      ...order,
+      id: deliveryId,
+      tipoComanda: 'entrega',
+      status: 'RECEBIDO',
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+      referencia: `Origem: Pedido ${order.id}`
+    };
+
+    // Remove referências a rotas antigas
+    newDelivery.motorista = undefined;
+    newDelivery.rota = undefined;
+    newDelivery.telemetria = undefined;
+    newDelivery.incidentes = [];
+
+    deliveries.set(deliveryId, newDelivery);
+    await salvarEntrega(newDelivery);
+
+    // 3. Publica no Broker de Eventos para que o Dispatcher Agende a Entrega
+    broker.publish('entrega.recebida', deliveryId, {
+      deliveryId: deliveryId,
+      cargoType: newDelivery.tipoCarga,
+      priority: newDelivery.prioridade,
+      clientName: newDelivery.nomeCliente,
+      address: newDelivery.endereco,
+      x: 40 + Math.floor(Math.random() * 55),
+      y: 40 + Math.floor(Math.random() * 55)
+    });
+
+    res.json({ success: true, message: 'Pedido finalizado e enviado para entrega.', order, delivery: newDelivery });
+  } catch (err: any) {
+    console.error('[Gateway] Erro ao finalizar comanda de pedido:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
+

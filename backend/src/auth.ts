@@ -45,6 +45,7 @@ router.post('/login', (req: Request, res: Response) => {
     nomeEmpresa: empresa.nome,
     token,
     criadoEm: new Date().toISOString(),
+    recebePedidos: loja.recebePedidos
   };
   sessions.set(token, sessao);
 
@@ -54,6 +55,7 @@ router.post('/login', (req: Request, res: Response) => {
     lojaId: loja.id,
     nomeLoja: loja.nome,
     nomeEmpresa: empresa.nome,
+    recebePedidos: loja.recebePedidos
   });
 });
 

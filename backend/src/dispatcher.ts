@@ -26,7 +26,14 @@ export class DispatcherAgent {
     // Se inscreve no tópico entrega.recebida
     broker.subscribe('entrega.recebida', this.state.name, async (event: MensagemEvento) => {
       const del = deliveries.get(event.deliveryId);
-      const lojaId = del?.lojaId || 'global';
+      if (!del) return;
+
+      if (del.tipoComanda === 'pedido' || del.referencia?.startsWith('Origem: Pedido')) {
+        console.log(`[Dispatcher] Comanda ${event.deliveryId} é do tipo pedido ou originada de pedido. Ignorando despacho automático.`);
+        return;
+      }
+
+      const lojaId = del.lojaId || 'global';
       const isAuto = autoDispatchSettings.get(lojaId) !== false;
       if (!isAuto) {
         console.log(`[Dispatcher] Despacho automático desativado para a loja ${lojaId}. Ignorando processamento automático para entrega ${event.deliveryId}.`);
@@ -89,7 +96,7 @@ export class DispatcherAgent {
 
     // 2. Agrupamento (Clustering)
     const pendingDeliveries = Array.from(deliveries.values())
-      .filter(d => d.status === 'RECEBIDO' && d.lojaId === lojaId && d.tipoCarga === delivery.tipoCarga && d.id !== deliveryId);
+      .filter(d => d.status === 'RECEBIDO' && d.tipoComanda !== 'pedido' && d.lojaId === lojaId && d.tipoCarga === delivery.tipoCarga && d.id !== deliveryId);
 
     pendingDeliveries.forEach(d => {
       if (!d.destino) {
@@ -139,6 +146,7 @@ export class DispatcherAgent {
       motorista = drivers.find(d =>
         d.id === preferredDriverId &&
         d.status === 'ocioso' &&
+        d.dispositivoConectado === true &&
         (!lojaId || d.lojaId === lojaId)
       ) || null;
     }
@@ -201,8 +209,9 @@ export class DispatcherAgent {
   }
 
   private findDriverForCargo(tipoCarga: string, lojaId?: string): Motorista | null {
-    // Filtra motoristas pelo contexto de tenant (loja)
-    const frotas = lojaId ? drivers.filter(d => d.lojaId === lojaId) : drivers;
+    // Filtra motoristas pelo contexto de tenant (loja) e garante que estão online
+    const frotas = (lojaId ? drivers.filter(d => d.lojaId === lojaId) : drivers)
+      .filter(d => d.dispositivoConectado === true);
 
     // Tenta encontrar um veículo preferencial
     let tiposPreferenciais: string[] = [];
@@ -304,6 +313,10 @@ export class DispatcherAgent {
     const motorista = drivers.find(d => d.id === driverId);
     if (!motorista) {
       throw new Error("Motorista não encontrado.");
+    }
+
+    if (!motorista.dispositivoConectado) {
+      throw new Error("Não é possível atribuir entregas a um motorista offline.");
     }
 
     motorista.status = 'ocupado';

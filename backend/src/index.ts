@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import tenantsRouter, { carregarTenantsDoBanco } from './tenants';
+import tenantsRouter, { carregarTenantsDoBanco, lojas } from './tenants';
 import authRouter, { sessions } from './auth';
 import apiRouter, { deliveries, webhooksReceived, drivers, carregarEntregasDoBanco, carregarMotoristasDoBanco, carregarVeiculosDoBanco } from './gateway';
 import whatsappRouter, { whatsappBotService, whatsappSessions } from './whatsapp';
@@ -313,19 +313,16 @@ setInterval(() => {
   });
 
   // Emite para cada loja: somente seus próprios dados
-  const lojasUnicas = new Set<string>();
-  todasEntregas.forEach(d => { if (d.lojaId) lojasUnicas.add(d.lojaId); });
-  drivers.forEach(d => { if (d.lojaId) lojasUnicas.add(d.lojaId); });
-
-  for (const lojaId of lojasUnicas) {
-    const entregasLoja = todasEntregas.filter(d => d.lojaId === lojaId);
-    const driversLoja = drivers.filter(d => d.lojaId === lojaId);
-    io.to(`loja-${lojaId}`).emit('system_status', {
+  for (const loja of lojas) {
+    const entregasLoja = todasEntregas.filter(d => d.lojaId === loja.id);
+    const driversLoja = drivers.filter(d => d.lojaId === loja.id);
+    io.to(`loja-${loja.id}`).emit('system_status', {
       deliveries: entregasLoja,
       drivers: driversLoja,
       agents: agentStates,
       queue: broker.getQueueMetrics(),
       webhooksReceived: [],
+      recebePedidos: loja.recebePedidos,
       timestamp: new Date().toISOString()
     });
   }

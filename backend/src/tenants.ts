@@ -204,7 +204,7 @@ router.get('/empresas/:empresaId/lojas', (req: Request, res: Response) => {
 router.post('/empresas/:empresaId/lojas', async (req: Request, res: Response) => {
   const empresa = empresas.find(e => e.id === req.params.empresaId);
   if (!empresa) { res.status(404).json({ error: 'Empresa não encontrada' }); return; }
-  const { nome, cnpj, endereco, bairro, cidade, usuario, senha } = req.body;
+  const { nome, cnpj, endereco, bairro, cidade, usuario, senha, recebePedidos } = req.body;
   if (!nome || !usuario || !senha || !cnpj) {
     res.status(400).json({ error: 'Nome, CNPJ, usuário e senha são obrigatórios' });
     return;
@@ -238,6 +238,7 @@ router.post('/empresas/:empresaId/lojas', async (req: Request, res: Response) =>
     chaveAcesso: gerarChaveAcesso(),
     ativo: true,
     criadoEm: new Date().toISOString(),
+    recebePedidos: recebePedidos === true || recebePedidos === 'true'
   };
 
   try {
@@ -254,7 +255,7 @@ router.post('/empresas/:empresaId/lojas', async (req: Request, res: Response) =>
 router.put('/empresas/:empresaId/lojas/:lojaId', async (req: Request, res: Response) => {
   const loja = lojas.find(l => l.id === req.params.lojaId && l.empresaId === req.params.empresaId);
   if (!loja) { res.status(404).json({ error: 'Loja não encontrada' }); return; }
-  const { nome, cnpj, endereco, bairro, cidade, usuario, senha } = req.body;
+  const { nome, cnpj, endereco, bairro, cidade, usuario, senha, recebePedidos } = req.body;
 
   if (usuario) {
     const cleanUsuario = usuario.trim().toLowerCase();
@@ -278,6 +279,9 @@ router.put('/empresas/:empresaId/lojas/:lojaId', async (req: Request, res: Respo
   if (endereco !== undefined) loja.endereco = endereco.trim() || undefined;
   if (bairro !== undefined) loja.bairro = bairro.trim() || undefined;
   if (cidade !== undefined) loja.cidade = cidade.trim() || undefined;
+  if (recebePedidos !== undefined) {
+    loja.recebePedidos = recebePedidos === true || recebePedidos === 'true';
+  }
   
   if (senha) loja.senhaHash = hashPassword(senha);
 
