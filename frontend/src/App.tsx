@@ -3426,10 +3426,16 @@ export default function App() {
               ) : (
                 [...deliveries]
                   .filter(e => e.tipoComanda !== 'pedido')
-                  .sort((e, t) => {
-                    const n = e.criadoEm ? new Date(e.criadoEm).getTime() : 0;
-                    const r = t.criadoEm ? new Date(t.criadoEm).getTime() : 0;
-                    return n - r;
+                  .sort((a, b) => {
+                    const isCompA = a.status === 'ENTREGUE' || a.status === 'PRODUTO_RETORNADO_ESTOQUE' || a.status === 'RECUSADO_INSUCESSO';
+                    const isCompB = b.status === 'ENTREGUE' || b.status === 'PRODUTO_RETORNADO_ESTOQUE' || b.status === 'RECUSADO_INSUCESSO';
+
+                    if (isCompA && !isCompB) return 1;
+                    if (!isCompA && isCompB) return -1;
+
+                    const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
+                    const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
+                    return dateB - dateA;
                   })
                   .map(d => (
                     <div 
@@ -3485,6 +3491,12 @@ export default function App() {
             ) : (
               [...deliveries]
                 .sort((a, b) => {
+                  const isCompA = a.status === 'ENTREGUE' || a.status === 'PRODUTO_RETORNADO_ESTOQUE' || a.status === 'RECUSADO_INSUCESSO';
+                  const isCompB = b.status === 'ENTREGUE' || b.status === 'PRODUTO_RETORNADO_ESTOQUE' || b.status === 'RECUSADO_INSUCESSO';
+
+                  if (isCompA && !isCompB) return 1;
+                  if (!isCompA && isCompB) return -1;
+
                   const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
                   const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
                   return dateB - dateA;
