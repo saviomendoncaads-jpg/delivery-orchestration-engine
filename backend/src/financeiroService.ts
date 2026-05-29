@@ -6,6 +6,7 @@ import { verificarAdmin, sessions } from './auth';
 import { empresas, lojas } from './tenants';
 import { getGateway } from './billing/gatewayFactory';
 import { appendLedger } from './billing/ledgerService';
+import { transicionar } from './billing/SubscriptionStateMachine';
 
 const router = Router();
 
@@ -73,17 +74,18 @@ export async function rotinaVerificacaoInadimplencia() {
     // 3. Atualizar status de cada empresa no banco e na memória
     for (const emp of empresas) {
       const statusAnterior = emp.statusFinanceiro;
-      let novoStatus = 'REGULAR';
 
-      if (empresasEmAtrasoCritico.has(emp.id)) {
-        novoStatus = 'INADIMPLENTE';
+      // SUSPENSO/CANCELADO são de responsabilidade EXCLUSIVA da máquina de estados
+      // da assinatura (saída desses estados só via pagamento/reativação, que deriva
+      // o status da empresa). A rotina não toca neles — evita o conflito de duas
+      // lógicas brigando pelo STATUS_FINANCEIRO (ex.: rotina resetar SUSPENSO->REGULAR).
+      if (statusAnterior === 'SUSPENSO' || statusAnterior === 'CANCELADO') {
+        continue;
       }
 
-      // Não regredir um estado mais severo (SUSPENSO/CANCELADO) de volta para
-      // INADIMPLENTE enquanto ainda houver débito — só a quitação total (-> REGULAR)
-      // ou o fluxo de dunning altera esses estados. Evita conflito com a régua D+7.
-      if (novoStatus === 'INADIMPLENTE' && (statusAnterior === 'SUSPENSO' || statusAnterior === 'CANCELADO')) {
-        novoStatus = statusAnterior;
+      let novoStatus = 'REGULAR';
+      if (empresasEmAtrasoCritico.has(emp.id)) {
+        novoStatus = 'INADIMPLENTE';
       }
 
       if (statusAnterior !== novoStatus) {
@@ -464,6 +466,7 @@ router.put('/faturas/:id/baixa-manual', verificarAdmin, async (req: Request, res
     const { dataPagamento, comprovanteReferencia, observacoes } = req.body;
 
     const pgto = dataPagamento || new Date().toISOString();
+    let assinaturaParaAtivar: string | null = null;
 
     // Operação atômica: SELECT com lock + baixa + histórico + ledger numa única
     // transação. O UPDLOCK/HOLDLOCK evita dupla-baixa em concorrência (dois
@@ -489,6 +492,7 @@ router.put('/faturas/:id/baixa-manual', verificarAdmin, async (req: Request, res
       }
 
       const valorLiquido = Number(fat.VALOR_BRUTO) - Number(fat.VALOR_DESCONTO);
+      assinaturaParaAtivar = fat.ASSINATURAS_EMPRESAS_ID ?? null;
 
       // 1. Dar baixa na fatura (status = 'PAGA')
       await tx.request()
@@ -533,7 +537,17 @@ router.put('/faturas/:id/baixa-manual', verificarAdmin, async (req: Request, res
 
     console.log(`[Financeiro] Baixa manual registrada para a fatura ${id}.`);
 
-    // 4. Reavaliar o status financeiro da empresa (pode voltar para REGULAR se não houver outras vencidas)
+    // 4. Pagamento reativa a assinatura via state machine (ATRASADA/SUSPENSA -> ATIVA),
+    // que também deriva o STATUS_FINANCEIRO da empresa. Fora da transação da fatura.
+    if (assinaturaParaAtivar) {
+      try {
+        await transicionar(assinaturaParaAtivar, 'payment.confirmed');
+      } catch (e: any) {
+        console.warn('[Financeiro] Falha ao reativar assinatura após baixa manual:', e?.message);
+      }
+    }
+
+    // 5. Reavaliar o status financeiro da empresa (pode voltar para REGULAR se não houver outras vencidas)
     await rotinaVerificacaoInadimplencia();
 
     res.json({ success: true, message: 'Fatura quitada com sucesso.' });
