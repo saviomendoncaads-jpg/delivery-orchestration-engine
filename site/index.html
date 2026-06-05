@@ -467,10 +467,11 @@
 <script>
 (function () {
   'use strict';
-  // Configurável: ?api=https://api.seudominio.com  |  ?panel=https://app.seudominio.com
+  // Por padrão usa a MESMA ORIGEM (o backend serve a landing e o app juntos):
+  // API em /api e painel em /app. Sobrescrevível via ?api=... e ?panel=...
   var qs = new URLSearchParams(location.search);
-  var BACKEND_URL = (qs.get('api') || 'http://localhost:5000').replace(/\/$/, '');
-  var PANEL_URL = (qs.get('panel') || 'http://localhost:5173').replace(/\/$/, '');
+  var BACKEND_URL = (qs.get('api') !== null ? qs.get('api') : '').replace(/\/$/, '');
+  var PANEL_URL = (qs.get('panel') || '/app');
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };

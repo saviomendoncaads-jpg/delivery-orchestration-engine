@@ -112,14 +112,27 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Produção (1 servidor, 1 origem): serve o frontend buildado em frontend/dist.
-// Qualquer rota que NÃO seja API/WebSocket/health cai no index.html (SPA).
-// Em dev o frontend roda no Vite (5173) e esta pasta pode nem existir — inofensivo.
+// Produção (1 servidor, 1 origem), com a LANDING pública como porta de entrada:
+//   /          -> LANDING (site/index.html): marketing + cadastro self-service + planos
+//   /app[/...] -> APP React (frontend/dist): login + painel da loja/admin (SPA)
+//   /assets/*  -> assets do app React (referenciados de forma absoluta no build)
+// Rotas de API/WebSocket/health são montadas ANTES e têm prioridade.
 const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
-app.use(express.static(frontendDist));
+const siteDir = path.join(__dirname, '..', '..', 'site');
+
+// Assets do app React (sempre na raiz /assets).
+app.use('/assets', express.static(path.join(frontendDist, 'assets')));
+
+// APP em /app — SPA: /app e subrotas servem o index.html do app.
+app.get(['/app', '/app/*'], (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+
+// LANDING pública na raiz (serve site/index.html, favicon, etc.).
+app.use(express.static(siteDir));
+
+// Fallback: qualquer outra rota não-API/WS/health/assets cai na LANDING.
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') return next();
-  res.sendFile(path.join(frontendDist, 'index.html'), (err) => { if (err) next(); });
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health' || req.path.startsWith('/assets')) return next();
+  res.sendFile(path.join(siteDir, 'index.html'));
 });
 
 const httpServer = createServer(app);
