@@ -502,9 +502,9 @@ async function inicializarBanco() {
       console.log('[Banco de Dados] Tipos de veículos padrão cadastrados com sucesso.');
     }
 
-    // Seed dos produtos padrão
+    // Seed dos produtos padrão (demo — pulado em produção via SEED_DEMO=false)
     const prodCount = await pool.request().query('SELECT COUNT(*) as qtd FROM PRODUTOS');
-    if (prodCount.recordset[0].qtd === 0) {
+    if (prodCount.recordset[0].qtd === 0 && process.env.SEED_DEMO !== 'false') {
       const defaultProducts = [
         { id: 'prod-1', nome: 'Pizza Margherita', preco: 42.90, imagemUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500' },
         { id: 'prod-2', nome: 'Pizza Calabresa', preco: 45.90, imagemUrl: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=500' },

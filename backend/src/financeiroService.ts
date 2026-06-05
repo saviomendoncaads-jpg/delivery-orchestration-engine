@@ -131,6 +131,11 @@ export async function inicializarFinanceiro() {
 async function seedFinanceiro() {
   try {
     if (!pool) return;
+    // Produção (SEED_DEMO=false): não cria empresa/loja/faturas de demonstração.
+    if (process.env.SEED_DEMO === 'false') {
+      console.log('[Financeiro] SEED_DEMO=false — seed de demonstração pulado (produção).');
+      return;
+    }
 
     // Verificar se já existem faturas
     const fatCount = await pool.request().query('SELECT COUNT(*) as qtd FROM FATURAS');
