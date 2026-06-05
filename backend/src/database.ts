@@ -3,22 +3,36 @@ import { Entrega, Motorista, Empresa, Loja, TipoVeiculo, Produto, Sessao } from 
 import { hashPassword, verifyPassword } from './security/password';
 
 
+// Configuração da conexão com o SQL Server, externalizada para variáveis de ambiente
+// (deploy em staging/produção/SQL gerenciado). Os defaults preservam o dev local:
+// localhost\SQLEXPRESS, banco GESTAO_DADOS, Autenticação Integrada do Windows.
+const usarSqlAuth = !!(process.env.DB_USER && process.env.DB_PASSWORD);
 const config: mssql.config = {
-  server: 'localhost\\SQLEXPRESS',
-  database: 'GESTAO_DADOS',
+  server: process.env.DB_SERVER || 'localhost\\SQLEXPRESS',
+  database: process.env.DB_DATABASE || 'GESTAO_DADOS',
   driver: 'msnodesqlv8',
   options: {
-    trustedConnection: true,
-    trustServerCertificate: true
-  }
+    // Sem DB_USER/DB_PASSWORD → Autenticação Integrada do Windows (dev).
+    // Com DB_USER/DB_PASSWORD → SQL Server Authentication (cloud/gerenciado).
+    trustedConnection: !usarSqlAuth,
+    trustServerCertificate: (process.env.DB_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
+    encrypt: (process.env.DB_ENCRYPT ?? 'false').toLowerCase() === 'true',
+  },
 };
+if (usarSqlAuth) {
+  config.user = process.env.DB_USER;
+  config.password = process.env.DB_PASSWORD;
+}
+if (process.env.DB_PORT) {
+  config.port = Number(process.env.DB_PORT);
+}
 
 export let pool: mssql.ConnectionPool;
 
 export async function conectarBanco() {
   try {
     pool = await new mssql.ConnectionPool(config).connect();
-    console.log('[Banco de Dados] Conectado ao SQL Server (GESTAO_DADOS) com sucesso!');
+    console.log(`[Banco de Dados] Conectado ao SQL Server (${config.database}) com sucesso!`);
     await inicializarBanco();
   } catch (err) {
     console.error('[Banco de Dados] Erro ao conectar ao SQL Server:', err);
