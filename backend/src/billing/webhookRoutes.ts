@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
-import mssql from 'mssql/msnodesqlv8';
+import mssql from '../db';
 import { pool } from '../database';
 import { getGateway } from './gatewayFactory';
 import { processarFilaWebhooks } from './webhookProcessor';

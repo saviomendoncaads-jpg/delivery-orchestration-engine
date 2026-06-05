@@ -1,4 +1,4 @@
-import mssql from 'mssql/msnodesqlv8';
+import mssql, { Transaction } from '../db';
 import { pool } from '../database';
 import { appendLedger } from './ledgerService';
 import { revogarSessoesDaLoja, revogarSessoesDaEmpresa } from '../auth';
@@ -130,7 +130,7 @@ export async function transicionar(assinaturaId: string, evento: EventoAssinatur
   }
 }
 
-async function sincronizarStatusFinanceiro(tx: mssql.Transaction, sub: any, destino: StatusAssinatura): Promise<void> {
+async function sincronizarStatusFinanceiro(tx: Transaction, sub: any, destino: StatusAssinatura): Promise<void> {
   const novo = STATUS_EMPRESA[destino];
   if (sub.LOJA_ID) {
     // Cobrança por loja: o status vive na LOJA.

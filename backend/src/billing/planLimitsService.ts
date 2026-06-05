@@ -1,4 +1,4 @@
-import mssql from 'mssql/msnodesqlv8';
+import mssql from '../db';
 import { pool } from '../database';
 
 /**

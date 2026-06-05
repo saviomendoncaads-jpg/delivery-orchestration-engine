@@ -1,4 +1,4 @@
-import mssql from 'mssql/msnodesqlv8';
+import mssql, { Transaction } from '../db';
 import { pool } from '../database';
 import { getGateway } from './gatewayFactory';
 import { appendLedger } from './ledgerService';
@@ -210,7 +210,7 @@ async function cancelarAssinaturaPorWebhook(norm: WebhookNormalizado): Promise<v
 }
 
 /** Localiza a fatura pelo GATEWAY_FATURA_ID (ou pelo ID local como fallback). */
-async function localizarFatura(tx: mssql.Transaction | null, norm: WebhookNormalizado): Promise<any | null> {
+async function localizarFatura(tx: Transaction | null, norm: WebhookNormalizado): Promise<any | null> {
   if (!norm.gatewayFaturaId) return null;
   const req = tx ? tx.request() : pool.request();
   const lock = tx ? 'WITH (UPDLOCK, HOLDLOCK)' : '';

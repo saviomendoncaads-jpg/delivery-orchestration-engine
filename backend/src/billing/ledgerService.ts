@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import mssql from 'mssql/msnodesqlv8';
+import mssql, { Request, Transaction } from '../db';
 import { pool } from '../database';
 
 // Único ponto de escrita no LEDGER_FINANCEIRO. Garante a cadeia de hash
@@ -32,7 +32,7 @@ export interface LancamentoInput {
 }
 
 /** Lê o hash do último lançamento (ordem por SEQ). Aceita um executor transacional. */
-async function ultimoHash(exec: mssql.Request): Promise<string | null> {
+async function ultimoHash(exec: Request): Promise<string | null> {
   const r = await exec.query(
     'SELECT TOP 1 HASH_ATUAL FROM LEDGER_FINANCEIRO WITH (UPDLOCK, HOLDLOCK) ORDER BY SEQ DESC'
   );
@@ -64,7 +64,7 @@ function calcularHash(
  */
 export async function appendLedger(
   l: LancamentoInput,
-  tx?: mssql.Transaction
+  tx?: Transaction
 ): Promise<{ id: string; hashAtual: string }> {
   const exec = () => (tx ? tx.request() : pool.request());
 

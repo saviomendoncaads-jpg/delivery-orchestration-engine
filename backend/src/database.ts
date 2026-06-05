@@ -1,4 +1,4 @@
-import mssql from 'mssql/msnodesqlv8';
+import mssql, { ConnectionPool } from './db';
 import { Entrega, Motorista, Empresa, Loja, TipoVeiculo, Produto, Sessao } from './types';
 import { hashPassword, verifyPassword } from './security/password';
 
@@ -6,28 +6,47 @@ import { hashPassword, verifyPassword } from './security/password';
 // Configuração da conexão com o SQL Server, externalizada para variáveis de ambiente
 // (deploy em staging/produção/SQL gerenciado). Os defaults preservam o dev local:
 // localhost\SQLEXPRESS, banco GESTAO_DADOS, Autenticação Integrada do Windows.
+const usarTedious = (process.env.DB_DRIVER || '').toLowerCase() === 'tedious';
 const usarSqlAuth = !!(process.env.DB_USER && process.env.DB_PASSWORD);
-const config: mssql.config = {
-  server: process.env.DB_SERVER || 'localhost\\SQLEXPRESS',
-  database: process.env.DB_DATABASE || 'GESTAO_DADOS',
-  driver: 'msnodesqlv8',
-  options: {
-    // Sem DB_USER/DB_PASSWORD → Autenticação Integrada do Windows (dev).
-    // Com DB_USER/DB_PASSWORD → SQL Server Authentication (cloud/gerenciado).
-    trustedConnection: !usarSqlAuth,
-    trustServerCertificate: (process.env.DB_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
-    encrypt: (process.env.DB_ENCRYPT ?? 'false').toLowerCase() === 'true',
-  },
-};
-if (usarSqlAuth) {
-  config.user = process.env.DB_USER;
-  config.password = process.env.DB_PASSWORD;
-}
-if (process.env.DB_PORT) {
-  config.port = Number(process.env.DB_PORT);
+
+let config: any;
+if (usarTedious) {
+  // Driver puro JS (Azure SQL / Linux / container). Exige SQL Authentication.
+  // O Azure SQL exige conexão criptografada (encrypt=true por padrão aqui).
+  config = {
+    server: process.env.DB_SERVER || 'localhost',
+    database: process.env.DB_DATABASE || 'GESTAO_DADOS',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    port: Number(process.env.DB_PORT) || 1433,
+    options: {
+      encrypt: (process.env.DB_ENCRYPT ?? 'true').toLowerCase() !== 'false',
+      trustServerCertificate: (process.env.DB_TRUST_SERVER_CERT ?? 'false').toLowerCase() === 'true',
+    },
+  };
+} else {
+  // Driver nativo msnodesqlv8 (Windows). Default = dev local.
+  // Sem DB_USER/DB_PASSWORD → Autenticação Integrada do Windows.
+  config = {
+    server: process.env.DB_SERVER || 'localhost\\SQLEXPRESS',
+    database: process.env.DB_DATABASE || 'GESTAO_DADOS',
+    driver: 'msnodesqlv8',
+    options: {
+      trustedConnection: !usarSqlAuth,
+      trustServerCertificate: (process.env.DB_TRUST_SERVER_CERT ?? 'true').toLowerCase() !== 'false',
+      encrypt: (process.env.DB_ENCRYPT ?? 'false').toLowerCase() === 'true',
+    },
+  };
+  if (usarSqlAuth) {
+    config.user = process.env.DB_USER;
+    config.password = process.env.DB_PASSWORD;
+  }
+  if (process.env.DB_PORT) {
+    config.port = Number(process.env.DB_PORT);
+  }
 }
 
-export let pool: mssql.ConnectionPool;
+export let pool: ConnectionPool;
 
 export async function conectarBanco() {
   try {
