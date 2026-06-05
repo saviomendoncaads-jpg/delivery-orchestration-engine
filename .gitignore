@@ -17,6 +17,8 @@ out/
 # ...mas o template de exemplo (sem segredos) deve ser versionado:
 !.env.example
 !**/.env.example
+# config de build do frontend (vars VITE_ são públicas no bundle — sem segredo):
+!frontend/.env.production
 
 # Logs
 *.log

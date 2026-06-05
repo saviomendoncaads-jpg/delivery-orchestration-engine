@@ -211,9 +211,12 @@ interface AcaoFilaSincronia {
   justificativaDesvioCoordenada?: string;
 }
 
-// URL do backend (API + WebSocket). Configurável no build via VITE_BACKEND_URL
-// (ex.: https://api.seudominio.com.br). Default = dev local.
-const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5000';
+// URL do backend (API + WebSocket). Configurável no build via VITE_BACKEND_URL:
+//  - não definido  → dev local (http://localhost:5000)
+//  - definido vazio → MESMA ORIGEM (o backend serve o frontend; ideal p/ 1 túnel só)
+//  - definido c/ URL → usa a URL (ex.: https://api.seudominio.com.br)
+const _viteBackend = (import.meta as any).env?.VITE_BACKEND_URL;
+const BACKEND_URL = _viteBackend === undefined ? 'http://localhost:5000' : _viteBackend;
 
 interface DadoPerformanceHistorico {
   id: string;
@@ -1861,8 +1864,8 @@ export default function App() {
       })
       .catch(err => console.error('[API] Falha ao obter tipos de veículos:', err));
 
-    // Conecta ao backend Socket.io passando o token
-    const socket = io(BACKEND_URL, {
+    // Conecta ao backend Socket.io passando o token (BACKEND_URL vazio = mesma origem)
+    const socket = io(BACKEND_URL || undefined, {
       auth: {
         token: sessao.token
       }

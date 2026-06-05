@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
@@ -100,11 +101,21 @@ app.use('/api', apiRouter);
 
 // Endpoint básico de status de saúde do servidor
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'saudavel', 
+  res.json({
+    status: 'saudavel',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
+});
+
+// Produção (1 servidor, 1 origem): serve o frontend buildado em frontend/dist.
+// Qualquer rota que NÃO seja API/WebSocket/health cai no index.html (SPA).
+// Em dev o frontend roda no Vite (5173) e esta pasta pode nem existir — inofensivo.
+const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
+app.use(express.static(frontendDist));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') return next();
+  res.sendFile(path.join(frontendDist, 'index.html'), (err) => { if (err) next(); });
 });
 
 const httpServer = createServer(app);
