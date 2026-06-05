@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "http-server", "site", "-p", "4173", "-c-1", "--silent"],
       "port": 4173
+    },
+    {
+      "name": "prodfront",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server", "frontend/dist", "-p", "4190", "-c-1", "--silent"],
+      "port": 4190
     }
   ]
 }
