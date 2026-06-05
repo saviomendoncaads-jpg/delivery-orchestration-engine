@@ -211,7 +211,9 @@ interface AcaoFilaSincronia {
   justificativaDesvioCoordenada?: string;
 }
 
-const BACKEND_URL = 'http://localhost:5000';
+// URL do backend (API + WebSocket). Configurável no build via VITE_BACKEND_URL
+// (ex.: https://api.seudominio.com.br). Default = dev local.
+const BACKEND_URL = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:5000';
 
 interface DadoPerformanceHistorico {
   id: string;
@@ -1102,7 +1104,7 @@ export default function App() {
   const [webhookUrl, setWebhookUrl] = useState('');
   const [valor, setValor] = useState('');
   const [driverId, setDriverId] = useState('');
-  const [externalApiUrl, setExternalApiUrl] = useState('http://localhost:5000/api/simulator/external-orders-api');
+  const [externalApiUrl, setExternalApiUrl] = useState(`${BACKEND_URL}/api/simulator/external-orders-api`);
   const [isSyncing, setIsSyncing] = useState(false);
   const [mapRoutesTrigger, setMapRoutesTrigger] = useState(0);
   const [isGeocoding, setIsGeocoding] = useState(false);
