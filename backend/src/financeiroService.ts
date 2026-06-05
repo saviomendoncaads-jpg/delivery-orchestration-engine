@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import mssql from 'mssql/msnodesqlv8';
 import { pool } from './database';
-import { verificarAdmin, sessions } from './auth';
+import { verificarAdmin, revogarSessoesDaEmpresa } from './auth';
 import { empresas, lojas } from './tenants';
 import { getGateway } from './billing/gatewayFactory';
 import { appendLedger } from './billing/ledgerService';
 import { transicionar } from './billing/SubscriptionStateMachine';
+import { hashPassword } from './security/password';
 
 const router = Router();
 
@@ -103,15 +104,7 @@ export async function rotinaVerificacaoInadimplencia() {
         // Se ficou INADIMPLENTE, desloga todas as sessões das lojas vinculadas a essa empresa
         if (novoStatus === 'INADIMPLENTE') {
           console.log(`[Financeiro] Revogando sessões de lojas da empresa ${emp.nome} devido à inadimplência.`);
-          for (const [token, sessao] of sessions.entries()) {
-            if (sessao.tipo === 'loja' && sessao.lojaId) {
-              const lojaObj = lojas.find(l => l.id === sessao.lojaId);
-              if (lojaObj && lojaObj.empresaId === emp.id) {
-                sessions.delete(token);
-                console.log(`[Financeiro] Sessão revogada para a loja ${lojaObj.nome} (Token: ${token.substring(0, 8)}...)`);
-              }
-            }
-          }
+          await revogarSessoesDaEmpresa(emp.id);
         }
       }
     }
@@ -171,6 +164,7 @@ async function seedFinanceiro() {
       empresas.push(novaEmpresa);
 
       // Criar uma loja padrão para esta empresa para que a simulação funcione perfeitamente
+      const senhaHashSeed = await hashPassword('123456');
       const novaLoja = {
         id: '41869dbf-4b09-4933-8bd2-11e60ccc092d', // ID fixo usado no simulador
         empresaId: novaEmpresa.id,
@@ -180,7 +174,7 @@ async function seedFinanceiro() {
         bairro: 'Bela Vista',
         cidade: 'São Paulo',
         usuario: 'paguemenos',
-        senhaHash: crypto.createHash('sha256').update('123456').digest('hex'),
+        senhaHash: senhaHashSeed,
         chaveAcesso: 'DISTRE-MOCK-PAGUE-MENOS',
         ativo: true,
         criadoEm: new Date().toISOString(),

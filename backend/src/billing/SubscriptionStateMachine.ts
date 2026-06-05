@@ -1,7 +1,7 @@
 import mssql from 'mssql/msnodesqlv8';
 import { pool } from '../database';
 import { appendLedger } from './ledgerService';
-import { sessions } from '../auth';
+import { revogarSessoesDaLoja, revogarSessoesDaEmpresa } from '../auth';
 import { empresas, lojas } from '../tenants';
 
 // Máquina de estados da assinatura — domínio aditivo (mantém ATIVA/CANCELADA
@@ -119,8 +119,8 @@ export async function transicionar(assinaturaId: string, evento: EventoAssinatur
     // Efeito de sessão fora da transação: estados severos derrubam o painel.
     // Por loja quando há LOJA_ID; senão (legado) por empresa.
     if (destino === 'SUSPENSA' || destino === 'CANCELADA') {
-      if (sub.LOJA_ID) revogarSessoesDaLoja(sub.LOJA_ID);
-      else revogarSessoesDaEmpresa(sub.EMPRESA_ID);
+      if (sub.LOJA_ID) await revogarSessoesDaLoja(sub.LOJA_ID);
+      else await revogarSessoesDaEmpresa(sub.EMPRESA_ID);
     }
 
     return { ok: true, de: atual, para: destino };
@@ -148,24 +148,5 @@ async function sincronizarStatusFinanceiro(tx: mssql.Transaction, sub: any, dest
       .query('UPDATE EMPRESAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
     const emp = empresas.find((e) => e.id === sub.EMPRESA_ID);
     if (emp) emp.statusFinanceiro = novo;
-  }
-}
-
-function revogarSessoesDaLoja(lojaId: string): void {
-  for (const [token, sessao] of sessions.entries()) {
-    if (sessao.tipo === 'loja' && sessao.lojaId === lojaId) {
-      sessions.delete(token);
-    }
-  }
-}
-
-function revogarSessoesDaEmpresa(empresaId: string): void {
-  for (const [token, sessao] of sessions.entries()) {
-    if (sessao.tipo === 'loja' && sessao.lojaId) {
-      const loja = lojas.find((l) => l.id === sessao.lojaId);
-      if (loja && loja.empresaId === empresaId) {
-        sessions.delete(token);
-      }
-    }
   }
 }

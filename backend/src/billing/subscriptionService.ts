@@ -13,7 +13,17 @@ export async function criarAssinaturaComPrimeiraFatura(opts: {
   lojaId: string;
   planoId: string;
   diaVencimento?: number;
-}): Promise<{ assinaturaId: string; faturaId: string; valor: number; planoNome: string }> {
+}): Promise<{
+  assinaturaId: string;
+  faturaId: string;
+  valor: number;
+  planoNome: string;
+  vencimento: string;
+  gatewayFaturaId: string;
+  boletoUrl?: string;
+  pixCopiaCola?: string;
+  linkPagamento?: string;
+}> {
   if (!pool) throw new Error('Banco indisponível');
 
   // Valida o plano (precisa existir e estar ativo).
@@ -90,5 +100,33 @@ export async function criarAssinaturaComPrimeiraFatura(opts: {
     criadoPor: 'ADMIN',
   });
 
-  return { assinaturaId, faturaId, valor, planoNome: plano.NOME };
+  return {
+    assinaturaId,
+    faturaId,
+    valor,
+    planoNome: plano.NOME,
+    vencimento: vencIso,
+    gatewayFaturaId: cobranca.gatewayFaturaId,
+    boletoUrl: cobranca.boletoUrl,
+    pixCopiaCola: cobranca.pixCopiaCola,
+    linkPagamento: cobranca.linkPagamento,
+  };
+}
+
+/** Lista os planos ativos com campos públicos (para a página de preços / signup). */
+export async function listarPlanosAtivos(): Promise<Array<{
+  id: string; nome: string; descricao: string; valorMensal: number;
+  limiteEntregasMes: number | null; limiteLojas: number | null; limiteMotoristas: number | null;
+}>> {
+  if (!pool) return [];
+  const r = await pool.request().query('SELECT * FROM PLANOS WHERE ATIVO = 1 ORDER BY VALOR_MENSAL');
+  return r.recordset.map((p: any) => ({
+    id: p.ID,
+    nome: p.NOME,
+    descricao: p.DESCRICAO || '',
+    valorMensal: Number(p.VALOR_MENSAL),
+    limiteEntregasMes: p.LIMITE_ENTREGAS_MES ?? null,
+    limiteLojas: p.LIMITE_LOJAS ?? null,
+    limiteMotoristas: p.LIMITE_MOTORISTAS ?? null,
+  }));
 }

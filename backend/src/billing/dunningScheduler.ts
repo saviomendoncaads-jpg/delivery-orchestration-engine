@@ -3,7 +3,7 @@ import { pool } from '../database';
 import { getGateway } from './gatewayFactory';
 import { appendLedger } from './ledgerService';
 import { transicionar } from './SubscriptionStateMachine';
-import { sessions } from '../auth';
+import { revogarSessoesDaLoja, revogarSessoesDaEmpresa } from '../auth';
 import { lojas, empresas } from '../tenants';
 
 // Régua de cobrança automatizada (Smart Dunning):
@@ -168,11 +168,7 @@ async function suspenderLoja(lojaId: string, empresaId: string): Promise<void> {
     .query('UPDATE LOJAS SET STATUS_FINANCEIRO = @s WHERE ID = @id');
   loja.statusFinanceiro = 'SUSPENSO';
 
-  for (const [token, sessao] of sessions.entries()) {
-    if (sessao.tipo === 'loja' && sessao.lojaId === lojaId) {
-      sessions.delete(token);
-    }
-  }
+  await revogarSessoesDaLoja(lojaId);
 
   await appendLedger({
     empresaId,
@@ -205,15 +201,8 @@ async function suspenderEmpresa(empresaId: string, assinaturaId?: string): Promi
       .query('UPDATE ASSINATURAS_EMPRESAS SET SUSPENSA_EM = @em WHERE ID = @id');
   }
 
-  // Revoga sessões ativas das lojas vinculadas (mesmo comportamento da rotina de inadimplência).
-  for (const [token, sessao] of sessions.entries()) {
-    if (sessao.tipo === 'loja' && sessao.lojaId) {
-      const loja = lojas.find((l) => l.id === sessao.lojaId);
-      if (loja && loja.empresaId === empresaId) {
-        sessions.delete(token);
-      }
-    }
-  }
+  // Revoga sessões ativas das lojas vinculadas (Map + banco).
+  await revogarSessoesDaEmpresa(empresaId);
 
   await appendLedger({
     empresaId,

@@ -14,6 +14,9 @@ out/
 .env
 .env.*
 .env.local
+# ...mas o template de exemplo (sem segredos) deve ser versionado:
+!.env.example
+!**/.env.example
 
 # Logs
 *.log

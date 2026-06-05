@@ -1,18 +1,22 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import tenantsRouter, { carregarTenantsDoBanco, lojas } from './tenants';
-import authRouter, { sessions } from './auth';
+import authRouter, { sessions, carregarSessoesDoBanco } from './auth';
 import apiRouter, { deliveries, webhooksReceived, drivers, carregarEntregasDoBanco, carregarMotoristasDoBanco, carregarVeiculosDoBanco } from './gateway';
 import whatsappRouter, { whatsappBotService, whatsappSessions } from './whatsapp';
 import { broker } from './broker';
 import { dispatcherAgent } from './dispatcher';
 import { monitorAgent } from './monitor';
 import { integratorAgent } from './integrator';
-import { conectarBanco, salvarMotorista } from './database';
+import { conectarBanco, salvarMotorista, limparSessoesExpiradas } from './database';
 import { Entrega, Motorista } from './types';
 import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
+import integracaoPedidosRouter from './integracaoPedidos';
+import integracaoEntregasRouter from './integracaoEntregas';
 import webhookRouter from './billing/webhookRoutes';
 import { iniciarWorkerWebhooks } from './billing/webhookProcessor';
 import { iniciarDunning } from './billing/dunningScheduler';
@@ -20,7 +24,32 @@ import { iniciarDunning } from './billing/dunningScheduler';
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({ origin: '*' }));
+// Allowlist de origens do CORS. Em produção defina CORS_ORIGINS (lista separada por
+// vírgula, ex.: "https://app.distre.com.br,https://admin.distre.com.br").
+// O default cobre o frontend Vite em desenvolvimento.
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    // Sem header Origin = chamada server-to-server (ERP, gateway de pagamento, curl,
+    // app mobile) → liberado. Origens de navegador passam pela allowlist.
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes('*') || corsOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
+  },
+  credentials: true,
+};
+
+// Cabeçalhos de segurança HTTP. CSP/CORP relaxados porque este serviço é uma API
+// JSON consumida por um SPA de outra origem (não serve HTML próprio).
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+app.use(cors(corsOptions));
 
 // Webhooks do gateway de pagamento: montados ANTES do express.json para receber
 // o corpo BRUTO (Buffer) e validar a assinatura HMAC. As demais rotas seguem JSON.
@@ -28,8 +57,17 @@ app.use('/api/billing/webhooks', express.raw({ type: '*/*' }), webhookRouter);
 
 app.use(express.json());
 
+// Proteção contra força-bruta de credenciais nas rotas de autenticação.
+const authLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de autenticação. Aguarde um minuto e tente novamente.' },
+});
+
 // Roteador de autenticação
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authLimiter, authRouter);
 
 // Roteador de gestão de empresas e lojas (multi-tenant)
 console.log('[Debug] tenantsRouter:', tenantsRouter, typeof tenantsRouter);
@@ -40,6 +78,12 @@ app.use('/api/whatsapp', whatsappRouter);
 
 // Roteador do Módulo Financeiro (admin)
 app.use('/api/admin/financeiro', financeiroRouter);
+
+// Roteador público de integração para receber pedidos externos (sistemas de venda)
+app.use('/api/integracao', integracaoPedidosRouter);
+
+// Roteador público de integração para receber comandas de entrega de ERPs externos
+app.use('/api/integracao', integracaoEntregasRouter);
 
 // Monta o Roteador de API do Gateway Ingress
 app.use('/api', apiRouter);
@@ -56,7 +100,7 @@ app.get('/health', (req, res) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: corsOrigins.includes('*') ? '*' : corsOrigins,
     methods: ['GET', 'POST']
   }
 });
@@ -335,6 +379,8 @@ setInterval(() => {
       queue: broker.getQueueMetrics(),
       webhooksReceived: [],
       recebePedidos: loja.recebePedidos,
+      lojaLat: loja.latitude,
+      lojaLng: loja.longitude,
       timestamp: new Date().toISOString()
     });
   }
@@ -346,6 +392,11 @@ async function startServer() {
 
   // Carrega os tenants (empresas/lojas) do banco de dados / realiza migração se necessário
   await carregarTenantsDoBanco();
+
+  // Restaura as sessões persistidas (sobrevive a restart/deploy) e agenda a limpeza
+  // das expiradas. Depende dos tenants já carregados (gate de loja suspensa na hidratação).
+  await carregarSessoesDoBanco();
+  setInterval(() => { limparSessoesExpiradas().catch(() => {}); }, 60 * 60 * 1000);
 
   // Carrega os motoristas cadastrados na tabela do banco de dados
   await carregarMotoristasDoBanco();
