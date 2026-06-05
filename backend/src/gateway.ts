@@ -5,6 +5,13 @@ import { salvarEntrega, obterEntregas, obterMotoristas, salvarMotorista, deletar
 import { obterSessaoDoRequest, exigirLojaAdimplente } from './auth';
 import { lojas, empresas } from './tenants';
 import { autoDispatchSettings } from './config';
+import { geocodificarEndereco } from './geocoding';
+import {
+  verificarLimiteMotoristas,
+  verificarLimiteEntregasMes,
+  obterUsoDaLoja,
+  erroLimite,
+} from './billing/planLimitsService';
 import fs from 'fs';
 import path from 'path';
 
@@ -216,9 +223,86 @@ export async function carregarEntregasDoBanco() {
       deliveries.set(d.id, d);
     });
     console.log(`[Gateway] ${lista.length} entregas carregadas do SQL Server.`);
+
+    // Backfill em background: geocodifica entregas antigas que ainda não têm destinoLat/Lng.
+    // Resolve o problema do pino do destino cair no grid sintético em comandas criadas antes
+    // do recurso de geocodificação automática.
+    void backfillCoordenadasDestino();
   } catch (err) {
     console.error('[Gateway] Erro ao alimentar cache em memória com banco de dados:', err);
   }
+}
+
+// Parser simples para endereços formatados em uma única string,
+// extraindo CEP, UF e separando logradouro/número quando possível.
+// Exemplo: "RUA SESSENTA E UM, 36, ABREU E LIMA, PE, CEP 53550811"
+function parseEnderecoTexto(texto: string): {
+  logradouro?: string; numero?: string; cidade?: string; uf?: string; cep?: string;
+} {
+  const out: { logradouro?: string; numero?: string; cidade?: string; uf?: string; cep?: string } = {};
+  let restante = texto;
+  // CEP
+  const cepMatch = restante.match(/(?:CEP\s*)?(\d{5})-?(\d{3})/i);
+  if (cepMatch) {
+    out.cep = `${cepMatch[1]}-${cepMatch[2]}`;
+    restante = restante.replace(cepMatch[0], '').replace(/,\s*,/g, ',').replace(/,\s*$/, '');
+  }
+  // UF (2 letras isoladas entre vírgulas ou no fim)
+  const ufMatch = restante.match(/(?:^|,\s*)([A-Z]{2})(?:\s*,|\s*$)/);
+  if (ufMatch) {
+    out.uf = ufMatch[1];
+    restante = restante.replace(ufMatch[0], ufMatch[0].startsWith(',') ? ',' : '').replace(/,\s*,/g, ',').replace(/,\s*$/, '');
+  }
+  // Quebra o resto por vírgulas
+  const partes = restante.split(',').map(p => p.trim()).filter(Boolean);
+  if (partes.length === 0) return out;
+  // Primeira parte: logradouro. Segunda: número (se numérico). Última: cidade.
+  out.logradouro = partes[0];
+  if (partes.length >= 2 && /^\d+/.test(partes[1])) {
+    out.numero = partes[1].match(/^\d+/)![0];
+    if (partes.length >= 3) out.cidade = partes[partes.length - 1];
+  } else if (partes.length >= 2) {
+    out.cidade = partes[partes.length - 1];
+  }
+  return out;
+}
+
+async function backfillCoordenadasDestino() {
+  const candidatas = Array.from(deliveries.values()).filter(
+    d => (d.destinoLatitude === undefined || d.destinoLongitude === undefined) && d.endereco && d.endereco.trim().length > 0
+  );
+  if (candidatas.length === 0) return;
+  console.log(`[Gateway] Geocodificando destino de ${candidatas.length} entrega(s) antigas em background...`);
+  let ok = 0, fail = 0;
+  for (const d of candidatas) {
+    try {
+      // Parseia o endereço formatado em componentes estruturados (logradouro/número/CEP/UF/cidade)
+      // para alimentar a busca estruturada do Nominatim — muito mais precisa.
+      const parsed = parseEnderecoTexto(d.endereco);
+      const coord = await geocodificarEndereco({
+        endereco: parsed.logradouro || d.endereco,
+        numero: parsed.numero,
+        bairro: d.bairro,
+        cidade: parsed.cidade || d.cidade,
+        uf: parsed.uf,
+        cep: parsed.cep
+      });
+      if (coord) {
+        d.destinoLatitude = coord.latitude;
+        d.destinoLongitude = coord.longitude;
+        await salvarEntrega(d);
+        ok++;
+        console.log(`[Gateway] ✔ ${d.id} ("${d.endereco}") → (${coord.latitude}, ${coord.longitude})`);
+      } else {
+        fail++;
+        console.warn(`[Gateway] ✖ ${d.id} sem coordenadas — endereço "${d.endereco}" não foi resolvido.`);
+      }
+    } catch (err) {
+      fail++;
+      console.error(`[Gateway] ✖ Falha no backfill da entrega ${d.id}:`, err);
+    }
+  }
+  console.log(`[Gateway] Backfill de destinos concluído: ${ok} ok, ${fail} falhas.`);
 }
 
 const router = Router();
@@ -298,6 +382,22 @@ router.post('/deliveries', exigirLojaAdimplente, async (req: Request, res: Respo
     recebePedidos = lojaObj ? (lojaObj.recebePedidos || false) : false;
   }
 
+  // Enforcement de plano: bloqueia ingestão acima do teto mensal de entregas do tier da loja.
+  if (lojaId) {
+    const limite = await verificarLimiteEntregasMes(lojaId);
+    if (!limite.permitido) {
+      res.status(403).json(erroLimite(limite));
+      return;
+    }
+  }
+
+  // Geocodifica o endereço do cliente para que o pino caia no lugar real no mapa.
+  const destinoCoord = await geocodificarEndereco({
+    endereco: address,
+    bairro: bairro || undefined,
+    cidade: cidade || undefined
+  });
+
   const newDelivery: Entrega = {
     id,
     nomeCliente: clientName,
@@ -320,7 +420,9 @@ router.post('/deliveries', exigirLojaAdimplente, async (req: Request, res: Respo
     lojaId,
     nomeLoja,
     nomeEmpresa,
-    tipoComanda: req.body.tipoComanda ?? 'entrega'
+    tipoComanda: req.body.tipoComanda ?? 'entrega',
+    destinoLatitude: destinoCoord?.latitude,
+    destinoLongitude: destinoCoord?.longitude
   };
 
   deliveries.set(id, newDelivery);
@@ -429,6 +531,23 @@ router.get('/drivers', (req: Request, res: Response) => {
   }
 });
 
+// 5.0. Consumo do plano da loja autenticada (motoristas e entregas do mês) —
+// alimenta a barra de uso e o nudge de upgrade no painel.
+router.get('/loja-atual/uso', async (req: Request, res: Response) => {
+  const sessao = obterSessaoDoRequest(req);
+  if (sessao?.tipo !== 'loja' || !sessao.lojaId) {
+    res.status(403).json({ error: 'Apenas sessões de loja têm consumo de plano.' });
+    return;
+  }
+  try {
+    const uso = await obterUsoDaLoja(sessao.lojaId);
+    res.json(uso);
+  } catch (err: any) {
+    console.error('[Gateway] Erro ao obter uso do plano da loja:', err);
+    res.status(500).json({ error: 'Erro ao calcular consumo do plano.' });
+  }
+});
+
 // 5.1. Cadastrar novo motorista (vinculado à loja da sessão)
 router.post('/drivers', async (req: Request, res: Response) => {
   const { name, vehicleType } = req.body;
@@ -440,6 +559,16 @@ router.post('/drivers', async (req: Request, res: Response) => {
   // Vincula o motorista à loja da sessão
   const sessao = obterSessaoDoRequest(req);
   const lojaId = sessao?.tipo === 'loja' ? sessao.lojaId : undefined;
+
+  // Enforcement de plano: bloqueia cadastro acima do limite de motoristas do tier da loja.
+  // Admin (sem lojaId) não é limitado — cria motoristas globais.
+  if (lojaId) {
+    const limite = await verificarLimiteMotoristas(lojaId);
+    if (!limite.permitido) {
+      res.status(403).json(erroLimite(limite));
+      return;
+    }
+  }
 
   // Gera código de 6 dígitos único para o pareamento do motoboy
   let codigoVinculo = '';
@@ -1109,6 +1238,13 @@ router.post('/pedidos-whatsapp', async (req: Request, res: Response) => {
     const lojaObj = lojas.find(l => l.id === lojaId);
     const recebePedidos = lojaObj ? lojaObj.recebePedidos : false;
 
+    // Enforcement de plano: a via WhatsApp Bot também respeita o teto mensal de entregas.
+    const limiteWa = await verificarLimiteEntregasMes(lojaId);
+    if (!limiteWa.permitido) {
+      res.status(403).json(erroLimite(limiteWa));
+      return;
+    }
+
     const id = gerarIdComanda();
     const newDelivery: Entrega = {
       id,
@@ -1184,6 +1320,44 @@ router.post('/deliveries/:id/prepare', async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Pedido movido para preparo.', order });
   } catch (err: any) {
     console.error('[Gateway] Erro ao mover comanda de pedido para preparo:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/deliveries/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    const order = deliveries.get(req.params.id as string);
+    if (!order) {
+      res.status(404).json({ error: 'Pedido não encontrado.' });
+      return;
+    }
+    // Cancelamento só permitido antes do despacho — depois disso o fluxo é AGUARDANDO_RETORNO_CD
+    const statusCanceláveis = ['RECEBIDO', 'EM_PREPARO'];
+    if (!statusCanceláveis.includes(order.status)) {
+      res.status(400).json({ error: `Só é possível cancelar comandas em RECEBIDO ou EM_PREPARO. Status atual: ${order.status}.` });
+      return;
+    }
+
+    const { motivo } = req.body || {};
+    order.status = 'CANCELADO';
+    order.atualizadoEm = new Date().toISOString();
+    order.dataHoraConclusao = order.atualizadoEm;
+    if (motivo && typeof motivo === 'string' && motivo.trim()) {
+      order.referencia = [order.referencia, `Cancelamento: ${motivo.trim()}`].filter(Boolean).join(' | ');
+    }
+    await salvarEntrega(order);
+
+    broker.publish('entrega.monitorada', order.id, {
+      deliveryId: order.id,
+      status: 'CANCELADO',
+      telemetria: order.telemetria,
+      incidents: order.incidentes,
+      motivo: motivo || undefined
+    });
+
+    res.json({ success: true, message: 'Comanda cancelada.', order });
+  } catch (err: any) {
+    console.error('[Gateway] Erro ao cancelar comanda:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,15 +1,16 @@
-export type StatusEntrega = 
-  | 'RECEBIDO' 
+export type StatusEntrega =
+  | 'RECEBIDO'
   | 'EM_PREPARO'
-  | 'DESPACHADO' 
-  | 'EM_TRANSITO' 
-  | 'NO_LOCAL' 
-  | 'ENTREGUE' 
-  | 'RECUSADO_INSUCESSO' 
+  | 'DESPACHADO'
+  | 'EM_TRANSITO'
+  | 'NO_LOCAL'
+  | 'ENTREGUE'
+  | 'RECUSADO_INSUCESSO'
   | 'ALERTA_INCIDENTE'
   | 'AGUARDANDO_RETORNO_CD'
   | 'PRODUTO_RETORNADO_ESTOQUE'
-  | 'SLA_ALERTA';
+  | 'SLA_ALERTA'
+  | 'CANCELADO';
 
 export type Prioridade = 'baixa' | 'media' | 'alta' | 'critica';
 export type TipoCarga = 'normal' | 'expressa' | 'agendado';
@@ -102,6 +103,11 @@ export interface Entrega {
   // Clusterização (Destino antes da rota)
   destino?: Localizacao;
 
+  // Coordenadas geográficas REAIS do destino (resolvidas via geocoder a partir do endereço do cliente).
+  // Independem do grid sintético; usadas pelo frontend para plotar o pino no lugar exato no mapa.
+  destinoLatitude?: number;
+  destinoLongitude?: number;
+
   // Multi-tenant
   lojaId?: string;
   nomeLoja?: string;
@@ -155,8 +161,11 @@ export interface Loja {
   nome: string;
   cnpj?: string;
   endereco?: string;
+  numero?: string;
   bairro?: string;
   cidade?: string;
+  uf?: string;
+  cep?: string;
   usuario: string;
   senhaHash: string;    // SHA-256, nunca exposto via API
   chaveAcesso: string;  // Código de referência DISTRE-XXXX-YYYY-ZZZZ
@@ -164,6 +173,8 @@ export interface Loja {
   criadoEm: string;
   recebePedidos?: boolean;
   statusFinanceiro?: string;  // 'REGULAR' | 'INADIMPLENTE' | 'SUSPENSO' | 'CANCELADO' — billing por loja
+  latitude?: number;   // coordenada geográfica resolvida a partir do endereço (Nominatim)
+  longitude?: number;
 }
 
 export interface Sessao {
@@ -174,6 +185,8 @@ export interface Sessao {
   token: string;
   criadoEm: string;
   recebePedidos?: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface TipoVeiculo {
