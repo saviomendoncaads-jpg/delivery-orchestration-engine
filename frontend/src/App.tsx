@@ -158,7 +158,7 @@ interface Entrega {
   itens: string[];
   prioridade: 'baixa' | 'media' | 'alta' | 'critica';
   tipoCarga: 'normal' | 'expressa' | 'agendado';
-  status: 'RECEBIDO' | 'DESPACHADO' | 'EM_TRANSITO' | 'NO_LOCAL' | 'ENTREGUE' | 'RECUSADO_INSUCESSO' | 'ALERTA_INCIDENTE' | 'AGUARDANDO_RETORNO_CD' | 'PRODUTO_RETORNADO_ESTOQUE' | 'SLA_ALERTA';
+  status: 'RECEBIDO' | 'EM_PREPARO' | 'DESPACHADO' | 'EM_TRANSITO' | 'NO_LOCAL' | 'ENTREGUE' | 'RECUSADO_INSUCESSO' | 'ALERTA_INCIDENTE' | 'AGUARDANDO_RETORNO_CD' | 'PRODUTO_RETORNADO_ESTOQUE' | 'SLA_ALERTA' | 'CANCELADO';
   valor?: number;
   motorista?: Motorista;
   rota?: Rota;
@@ -191,6 +191,8 @@ interface Entrega {
   nomeLoja?: string;
   nomeEmpresa?: string;
   tipoComanda?: 'pedido' | 'entrega';
+  destinoLatitude?: number;
+  destinoLongitude?: number;
 }
 
 
@@ -251,13 +253,18 @@ interface Loja {
   nome: string;
   cnpj?: string;
   endereco?: string;
+  numero?: string;
   bairro?: string;
   cidade?: string;
+  uf?: string;
+  cep?: string;
   usuario: string;
   chaveAcesso: string;
   ativo: boolean;
   criadoEm: string;
   recebePedidos?: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface Sessao {
@@ -268,6 +275,8 @@ interface Sessao {
   token: string;
   criadoEm?: string;
   recebePedidos?: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export default function App() {
@@ -296,7 +305,6 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginTab, setLoginTab] = useState<'loja' | 'admin'>('loja');
   const [selectedDriverForDispatch, setSelectedDriverForDispatch] = useState('');
-  const [autoDispatch, setAutoDispatch] = useState(true);
 
   // Gerenciamento de Empresas no Painel Master
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -316,8 +324,11 @@ export default function App() {
   const [novaLojaUsuario, setNovaLojaUsuario] = useState('');
   const [novaLojaSenha, setNovaLojaSenha] = useState('');
   const [novaLojaEndereco, setNovaLojaEndereco] = useState('');
+  const [novaLojaNumero, setNovaLojaNumero] = useState('');
   const [novaLojaBairro, setNovaLojaBairro] = useState('');
   const [novaLojaCidade, setNovaLojaCidade] = useState('');
+  const [novaLojaUf, setNovaLojaUf] = useState('');
+  const [novaLojaCep, setNovaLojaCep] = useState('');
   const [novaLojaRecebePedidos, setNovaLojaRecebePedidos] = useState(false);
   const [novaLojaPlanoId, setNovaLojaPlanoId] = useState('');
 
@@ -327,8 +338,11 @@ export default function App() {
   const [editLojaUsuario, setEditLojaUsuario] = useState('');
   const [editLojaSenha, setEditLojaSenha] = useState('');
   const [editLojaEndereco, setEditLojaEndereco] = useState('');
+  const [editLojaNumero, setEditLojaNumero] = useState('');
   const [editLojaBairro, setEditLojaBairro] = useState('');
   const [editLojaCidade, setEditLojaCidade] = useState('');
+  const [editLojaUf, setEditLojaUf] = useState('');
+  const [editLojaCep, setEditLojaCep] = useState('');
   const [editLojaRecebePedidos, setEditLojaRecebePedidos] = useState(false);
 
   // Loja sendo visualizada pelo Admin Master
@@ -446,22 +460,6 @@ export default function App() {
       setLoginSenha('');
     } catch (err: any) {
       setLoginError(err.message);
-    }
-  };
-
-  const handleToggleAutoDispatch = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.checked;
-    setAutoDispatch(val);
-    try {
-      const response = await apiFetch(`${BACKEND_URL}/api/config`, {
-        method: 'POST',
-        body: JSON.stringify({ autoDispatch: val })
-      });
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar configuração de despacho');
-      }
-    } catch (err) {
-      console.error('[API] Erro ao salvar configuração:', err);
     }
   };
 
@@ -854,8 +852,11 @@ export default function App() {
           usuario: novaLojaUsuario,
           senha: novaLojaSenha,
           endereco: novaLojaEndereco,
+          numero: novaLojaNumero,
           bairro: novaLojaBairro,
           cidade: novaLojaCidade,
+          uf: novaLojaUf,
+          cep: novaLojaCep,
           recebePedidos: novaLojaRecebePedidos,
           planoId: novaLojaPlanoId
         })
@@ -869,8 +870,11 @@ export default function App() {
       setNovaLojaUsuario('');
       setNovaLojaSenha('');
       setNovaLojaEndereco('');
+      setNovaLojaNumero('');
       setNovaLojaBairro('');
       setNovaLojaCidade('');
+      setNovaLojaUf('');
+      setNovaLojaCep('');
       setNovaLojaRecebePedidos(false);
       setNovaLojaPlanoId('');
       setShowNovaLojaForm(null);
@@ -939,8 +943,11 @@ export default function App() {
     setEditLojaUsuario(loja.usuario);
     setEditLojaSenha('');
     setEditLojaEndereco(loja.endereco || '');
+    setEditLojaNumero(loja.numero || '');
     setEditLojaBairro(loja.bairro || '');
     setEditLojaCidade(loja.cidade || '');
+    setEditLojaUf(loja.uf || '');
+    setEditLojaCep(loja.cep || '');
     setEditLojaRecebePedidos(loja.recebePedidos || false);
   };
 
@@ -958,8 +965,11 @@ export default function App() {
         cnpj: editLojaCnpj,
         usuario: editLojaUsuario,
         endereco: editLojaEndereco || undefined,
+        numero: editLojaNumero || undefined,
         bairro: editLojaBairro || undefined,
         cidade: editLojaCidade || undefined,
+        uf: editLojaUf || undefined,
+        cep: editLojaCep || undefined,
         recebePedidos: editLojaRecebePedidos
       };
       if (editLojaSenha.trim()) {
@@ -1050,6 +1060,8 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [allDeliveries, setAllDeliveries] = useState<Entrega[]>([]);
   const [allDrivers, setAllDrivers] = useState<Motorista[]>([]);
+  // Coordenadas geográficas da loja recebidas em tempo real via system_status (independem da sessão em cache)
+  const [lojaCoordsLive, setLojaCoordsLive] = useState<{ lat: number; lng: number } | null>(null);
 
   // Filtro de segurança (Multi-tenant) no frontend
   const tenantLojaId = sessao?.tipo === 'loja' 
@@ -1570,8 +1582,12 @@ export default function App() {
         vehicleType: newDriverVehicleType
       })
     })
-      .then(res => {
-        if (!res.ok) throw new Error('Erro ao cadastrar motoboy');
+      .then(async res => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          // 403 PLAN_LIMIT_REACHED: surface a mensagem de limite+upgrade do backend.
+          throw new Error(data.error || 'Erro ao cadastrar motoboy');
+        }
         return res.json();
       })
       .then(() => {
@@ -1781,18 +1797,6 @@ export default function App() {
 
   // Carrega configurações de despacho
   useEffect(() => {
-    if (sessao) {
-      apiFetch(`${BACKEND_URL}/api/config`)
-        .then(res => {
-          if (res.ok) return res.json();
-          throw new Error('Erro ao buscar config');
-        })
-        .then(data => setAutoDispatch(data.autoDispatch))
-        .catch(err => console.error('[API] Falha ao obter configuração de despacho:', err));
-    }
-  }, [sessao]);
-
-  useEffect(() => {
     offlineModeRef.current = offlineMode;
   }, [offlineMode]);
 
@@ -1907,6 +1911,12 @@ export default function App() {
       });
       setAllDeliveries(nextDeliveries);
       setAllDrivers(data.drivers);
+      if (typeof data.lojaLat === 'number' && typeof data.lojaLng === 'number') {
+        setLojaCoordsLive(prev => {
+          if (prev && prev.lat === data.lojaLat && prev.lng === data.lojaLng) return prev;
+          return { lat: data.lojaLat, lng: data.lojaLng };
+        });
+      }
       // Webhooks recebidos não são mais salvos no estado
     });
 
@@ -2031,12 +2041,35 @@ export default function App() {
     }
   };
 
+  // Coordenadas reais da loja atual (resolvidas via Nominatim no backend a partir do endereço).
+  // Ordem de prioridade:
+  //   1. lojaCoordsLive — vem em tempo real pelo system_status (cobre backfill e edição de endereço sem precisar relogar)
+  //   2. currentLoja (admin observando uma loja) ou sessao (usuário-loja logado)
+  //   3. Fallback: ponto fixo da grade (10,10) dentro do bounding box padrão da cidade
+  const lojaLat =
+    lojaCoordsLive?.lat ??
+    (sessao?.tipo === 'loja' ? sessao.latitude : currentLoja?.latitude);
+  const lojaLng =
+    lojaCoordsLive?.lng ??
+    (sessao?.tipo === 'loja' ? sessao.longitude : currentLoja?.longitude);
+  const hubLatLng: [number, number] =
+    typeof lojaLat === 'number' && typeof lojaLng === 'number'
+      ? [lojaLat, lojaLng]
+      : gridToLatLng(10, 10);
+
+  // Recentraliza o mapa quando as coordenadas reais da loja chegarem (ou mudarem após edição).
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    if (typeof lojaLat !== 'number' || typeof lojaLng !== 'number') return;
+    map.setView([lojaLat, lojaLng], map.getZoom());
+  }, [lojaLat, lojaLng]);
+
   // 1. Inicialização do Mapa Leaflet
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (leafletMapRef.current) return; // já inicializado
 
-    const hubLatLng = gridToLatLng(10, 10);
     
     // Inicializa o mapa com zoom ajustado
     const map = L.map(mapContainerRef.current, {
@@ -2086,7 +2119,6 @@ export default function App() {
 
     // A. Atualizar marcador do Hub com o nome da loja dinâmico
     if (hubMarkerRef.current) {
-      const hubLatLng = gridToLatLng(10, 10);
       const hubIcon = L.divIcon({
         className: 'hub-icon-wrapper',
         html: `<div class="map-city-hub" style="--hub-name: '${hubName}'; position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;"></div>`,
@@ -2107,7 +2139,12 @@ export default function App() {
     activeDels.forEach(d => {
       if (!d.rota?.path) return;
       const endNode = d.rota.path[d.rota.path.length - 1];
-      const endLatLng = gridToLatLng(endNode.x, endNode.y);
+      // Prefere as coordenadas reais geocodificadas do endereço do cliente.
+      // Se não houver (entrega legada ou geocoder falhou), cai no ponto sintético da grade.
+      const endLatLng: [number, number] =
+        typeof d.destinoLatitude === 'number' && typeof d.destinoLongitude === 'number'
+          ? [d.destinoLatitude, d.destinoLongitude]
+          : gridToLatLng(endNode.x, endNode.y);
       const isSkipped = d.incidentes?.some(i => i.tipo === 'route_deviation' && i.descricao.includes('AlertaDesvioSequencia'));
       const hasArrived = d.status === 'NO_LOCAL';
 
@@ -2146,11 +2183,14 @@ export default function App() {
       const key = d.id;
       currentRouteKeys.add(key);
 
-      const startLatLng = gridToLatLng(10, 10);
+      const startLatLng = hubLatLng;
       const endNode = d.rota.path[d.rota.path.length - 1];
-      const endLatLng = gridToLatLng(endNode.x, endNode.y);
-      
-      const cacheKey = `${d.id}-${endNode.x}-${endNode.y}`;
+      const endLatLng: [number, number] =
+        typeof d.destinoLatitude === 'number' && typeof d.destinoLongitude === 'number'
+          ? [d.destinoLatitude, d.destinoLongitude]
+          : gridToLatLng(endNode.x, endNode.y);
+
+      const cacheKey = `${d.id}-${hubLatLng[0].toFixed(5)}-${hubLatLng[1].toFixed(5)}-${endLatLng[0].toFixed(5)}-${endLatLng[1].toFixed(5)}`;
       const isSelected = d.id === selectedDeliveryId;
       const hasIncident = d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA';
 
@@ -2404,6 +2444,11 @@ export default function App() {
         setValor('');
         setDriverId('');
         setSelectedDeliveryId(newDelivery.id);
+      } else {
+        // 403 PLAN_LIMIT_REACHED (ou outro erro): mostra a mensagem do backend
+        // (ex.: limite mensal de entregas atingido + nudge de upgrade).
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Erro ao registrar entrega.');
       }
     } catch (err) {
       console.error('Erro ao registrar entrega:', err);
@@ -2421,6 +2466,25 @@ export default function App() {
         throw new Error(data.error || 'Erro ao preparar comanda');
       }
       alert(data.message || 'Pedido aceito e em preparação!');
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleCancelarPedido = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const motivo = window.prompt('Motivo do cancelamento (opcional):', '');
+    if (motivo === null) return; // usuário fechou o prompt
+    if (!window.confirm(`Confirma o cancelamento da comanda ${id}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const response = await apiFetch(`${BACKEND_URL}/api/deliveries/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ motivo: motivo.trim() || undefined })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao cancelar comanda');
+      }
     } catch (err: any) {
       alert(err.message);
     }
@@ -2835,6 +2899,7 @@ export default function App() {
       case 'AGUARDANDO_RETORNO_CD': return 'Aguardando Retorno a Loja';
       case 'PRODUTO_RETORNADO_ESTOQUE': return 'Cancelado / Devolvido';
       case 'SLA_ALERTA': return 'Alerta de SLA';
+      case 'CANCELADO': return 'Cancelado';
       default: return status;
     }
   };
@@ -3934,33 +3999,65 @@ export default function App() {
                               </select>
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Endereço</label>
-                              <input 
-                                type="text" 
-                                className="form-input" 
-                                value={novaLojaEndereco} 
-                                onChange={e => setNovaLojaEndereco(e.target.value)} 
-                                placeholder="Rua A, 123" 
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>CEP</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaCep}
+                                onChange={e => setNovaLojaCep(e.target.value)}
+                                placeholder="00000-000"
+                                maxLength={9}
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Endereço (Logradouro)</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaEndereco}
+                                onChange={e => setNovaLojaEndereco(e.target.value)}
+                                placeholder="Rua das Flores"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Número</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaNumero}
+                                onChange={e => setNovaLojaNumero(e.target.value)}
+                                placeholder="123"
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Bairro</label>
-                              <input 
-                                type="text" 
-                                className="form-input" 
-                                value={novaLojaBairro} 
-                                onChange={e => setNovaLojaBairro(e.target.value)} 
-                                placeholder="Bairro" 
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaBairro}
+                                onChange={e => setNovaLojaBairro(e.target.value)}
+                                placeholder="Bairro"
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
                               <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Cidade</label>
-                              <input 
-                                type="text" 
-                                className="form-input" 
-                                value={novaLojaCidade} 
-                                onChange={e => setNovaLojaCidade(e.target.value)} 
-                                placeholder="São Paulo" 
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaCidade}
+                                onChange={e => setNovaLojaCidade(e.target.value)}
+                                placeholder="São Paulo"
+                              />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>UF</label>
+                              <input
+                                type="text"
+                                className="form-input"
+                                value={novaLojaUf}
+                                onChange={e => setNovaLojaUf(e.target.value.toUpperCase())}
+                                placeholder="SP"
+                                maxLength={2}
                               />
                             </div>
                             <div className="form-group" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', height: '34px' }}>
@@ -4422,38 +4519,74 @@ export default function App() {
                       placeholder="Nova senha da loja"
                     />
                   </div>
-                  <div className="form-group">
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={editLojaEndereco} 
-                      onChange={e => setEditLojaEndereco(e.target.value)} 
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>CEP</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaCep}
+                        onChange={e => setEditLojaCep(e.target.value)}
+                        placeholder="00000-000"
+                        maxLength={9}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>UF</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaUf}
+                        onChange={e => setEditLojaUf(e.target.value.toUpperCase())}
+                        placeholder="SP"
+                        maxLength={2}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.6rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço (Logradouro)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaEndereco}
+                        onChange={e => setEditLojaEndereco(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Número</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaNumero}
+                        onChange={e => setEditLojaNumero(e.target.value)}
+                        placeholder="123"
+                      />
+                    </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                     <div className="form-group">
                       <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bairro</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        value={editLojaBairro} 
-                        onChange={e => setEditLojaBairro(e.target.value)} 
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaBairro}
+                        onChange={e => setEditLojaBairro(e.target.value)}
                       />
                     </div>
                     <div className="form-group">
                       <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cidade</label>
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        value={editLojaCidade} 
-                        onChange={e => setEditLojaCidade(e.target.value)} 
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editLojaCidade}
+                        onChange={e => setEditLojaCidade(e.target.value)}
                       />
                     </div>
                   </div>
                   <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="editLojaRecebePedidosMaster"
                       checked={editLojaRecebePedidos} 
                       onChange={e => setEditLojaRecebePedidos(e.target.checked)} 
@@ -4584,17 +4717,6 @@ export default function App() {
         <div className="panel-header">
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             Controle de Comandas
-            {tenantLojaId && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', cursor: 'pointer', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                <input
-                  type="checkbox"
-                  checked={autoDispatch}
-                  onChange={handleToggleAutoDispatch}
-                  style={{ accentColor: 'var(--color-cyan)', cursor: 'pointer' }}
-                />
-                Despacho Automático
-              </label>
-            )}
             {tenantLojaId && (
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -4786,13 +4908,13 @@ export default function App() {
               Fila de Pedidos (WhatsApp / API)
             </div>
             <div className="deliveries-horizontal-list" style={{ marginBottom: '1.2rem', minHeight: '80px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '1rem' }}>
-              {deliveries.filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE').length === 0 ? (
+              {deliveries.filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE' && e.status !== 'CANCELADO').length === 0 ? (
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '1rem', width: '100%' }}>
                   Nenhum pedido pendente na fila.
                 </div>
               ) : (
                 [...deliveries]
-                  .filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE')
+                  .filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE' && e.status !== 'CANCELADO')
                   .sort((e, t) => {
                     const n = e.criadoEm ? new Date(e.criadoEm).getTime() : 0;
                     const r = t.criadoEm ? new Date(t.criadoEm).getTime() : 0;
@@ -4844,29 +4966,42 @@ export default function App() {
                           {e.endereco}
                         </div>
                       </div>
-                      {e.status === 'RECEBIDO' ? (
-                        <button 
-                          className="btn btn-primary btn-small"
-                          style={{ marginTop: '0.4rem', width: '100%', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-amber)', borderColor: 'var(--color-amber)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
-                          onClick={(t) => handlePrepararPedido(e.id, t)}
+                      <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.4rem' }}>
+                        {e.status === 'RECEBIDO' ? (
+                          <button
+                            className="btn btn-primary btn-small"
+                            style={{ flex: 1, fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-amber)', borderColor: 'var(--color-amber)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
+                            onClick={(t) => handlePrepararPedido(e.id, t)}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
+                              <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                            Aceitar e Preparar
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-success btn-small"
+                            style={{ flex: 1, fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-emerald)', borderColor: 'var(--color-emerald)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
+                            onClick={(t) => handleFinalizarPedido(e.id, t)}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            Finalizar e Enviar
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-small"
+                          style={{ fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.6rem', background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.4)', color: 'var(--color-rose)', fontWeight: 600, borderRadius: '4px' }}
+                          onClick={(t) => handleCancelarPedido(e.id, t)}
+                          title="Cancelar comanda"
                         >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
-                            <path d="M5 12h14M12 5l7 7-7 7" />
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                           </svg>
-                          Aceitar e Preparar
+                          Cancelar
                         </button>
-                      ) : (
-                        <button 
-                          className="btn btn-success btn-small"
-                          style={{ marginTop: '0.4rem', width: '100%', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-emerald)', borderColor: 'var(--color-emerald)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
-                          onClick={(t) => handleFinalizarPedido(e.id, t)}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          Finalizar e Enviar para Entrega
-                        </button>
-                      )}
+                      </div>
                     </div>
                   ))
               )}
@@ -5268,6 +5403,87 @@ export default function App() {
 
           <div className="map-container" style={{ position: 'relative', overflow: 'hidden' }}>
             <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#090d16' }}></div>
+            {/* Overlay com status da geolocalização da loja + botão de re-geocodificação */}
+            {sessao?.tipo === 'loja' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '10px',
+                  left: '10px',
+                  zIndex: 1000,
+                  background: 'rgba(9, 13, 22, 0.85)',
+                  border: '1px solid rgba(0, 242, 254, 0.25)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  fontSize: '0.7rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  maxWidth: '320px'
+                }}
+              >
+                {typeof lojaLat === 'number' && typeof lojaLng === 'number' ? (
+                  <span>
+                    📍 Loja: <span className="font-mono" style={{ color: 'var(--color-cyan)' }}>{lojaLat.toFixed(5)}, {lojaLng.toFixed(5)}</span>
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--color-amber)' }}>⚠️ Localização não resolvida — sem CEP/endereço.</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      alert('Este navegador não suporta geolocalização.');
+                      return;
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                      async (pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        try {
+                          const resp = await apiFetch(`${BACKEND_URL}/api/loja-atual/coordenadas`, {
+                            method: 'POST',
+                            body: JSON.stringify({ latitude, longitude })
+                          });
+                          const contentType = resp.headers.get('content-type') || '';
+                          if (!contentType.includes('application/json')) {
+                            alert(
+                              `Backend respondeu HTTP ${resp.status} sem JSON. ` +
+                              `Reinicie o backend (npm run dev) — rota nova ainda não existe.`
+                            );
+                            return;
+                          }
+                          const data = await resp.json();
+                          if (!resp.ok) {
+                            alert(data.error || 'Erro ao salvar localização.');
+                            return;
+                          }
+                          setLojaCoordsLive({ lat: latitude, lng: longitude });
+                        } catch (err: any) {
+                          alert('Erro ao salvar localização: ' + err.message);
+                        }
+                      },
+                      (err) => {
+                        const msg = err.code === err.PERMISSION_DENIED
+                          ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
+                          : err.code === err.POSITION_UNAVAILABLE
+                            ? 'Localização indisponível no momento.'
+                            : err.code === err.TIMEOUT
+                              ? 'Tempo esgotado ao obter localização.'
+                              : 'Erro de geolocalização: ' + err.message;
+                        alert(msg);
+                      },
+                      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                    );
+                  }}
+                  className="btn"
+                  style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', background: 'var(--color-cyan)', color: '#000', fontWeight: 600 }}
+                  title="Usa o GPS deste dispositivo para fixar a loja na localização atual"
+                >
+                  📍 Usar minha localização
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="split-telemetry-container">
@@ -6866,38 +7082,74 @@ export default function App() {
                     placeholder="Nova senha da loja"
                   />
                 </div>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={editLojaEndereco} 
-                    onChange={e => setEditLojaEndereco(e.target.value)} 
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>CEP</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaCep}
+                      onChange={e => setEditLojaCep(e.target.value)}
+                      placeholder="00000-000"
+                      maxLength={9}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>UF</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaUf}
+                      onChange={e => setEditLojaUf(e.target.value.toUpperCase())}
+                      placeholder="SP"
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.6rem' }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Endereço (Logradouro)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaEndereco}
+                      onChange={e => setEditLojaEndereco(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Número</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaNumero}
+                      onChange={e => setEditLojaNumero(e.target.value)}
+                      placeholder="123"
+                    />
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
                   <div className="form-group">
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bairro</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={editLojaBairro} 
-                      onChange={e => setEditLojaBairro(e.target.value)} 
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaBairro}
+                      onChange={e => setEditLojaBairro(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cidade</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      value={editLojaCidade} 
-                      onChange={e => setEditLojaCidade(e.target.value)} 
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editLojaCidade}
+                      onChange={e => setEditLojaCidade(e.target.value)}
                     />
                   </div>
                 </div>
                 <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     id="editLojaRecebePedidos"
                     checked={editLojaRecebePedidos} 
                     onChange={e => setEditLojaRecebePedidos(e.target.checked)} 
