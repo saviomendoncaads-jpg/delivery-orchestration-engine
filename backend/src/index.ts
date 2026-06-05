@@ -49,7 +49,11 @@ const corsOptions: cors.CorsOptions = {
     // app mobile) → liberado. Origens de navegador passam pela allowlist.
     if (!origin) return callback(null, true);
     if (corsOrigins.includes('*') || corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
+    // Origem não permitida: NÃO lança erro (lançar viraria 500 e quebraria até
+    // requisições de MESMA ORIGEM — o navegador manda header Origin em fetch/módulo
+    // mesmo same-origin). Apenas omite os headers CORS: same-origin passa normal;
+    // cross-origin não-autorizado é bloqueado pelo navegador (resposta sem ACAO).
+    return callback(null, false);
   },
   credentials: true,
 };
