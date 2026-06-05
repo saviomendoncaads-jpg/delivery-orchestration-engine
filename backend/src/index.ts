@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 import tenantsRouter, { carregarTenantsDoBanco, lojas } from './tenants';
 import authRouter, { sessions, carregarSessoesDoBanco } from './auth';
 import apiRouter, { deliveries, webhooksReceived, drivers, carregarEntregasDoBanco, carregarMotoristasDoBanco, carregarVeiculosDoBanco } from './gateway';
@@ -23,6 +25,13 @@ import { iniciarDunning } from './billing/dunningScheduler';
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Atrás de load balancer/reverse proxy (deploy multi-instância ou nginx): habilita a
+// leitura de X-Forwarded-* para o IP real do cliente (rate-limit correto) e protocolo.
+// Gate por env: sem proxy na frente, NÃO confiar nesses headers (anti-spoofing de IP).
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
 
 // Allowlist de origens do CORS. Em produção defina CORS_ORIGINS (lista separada por
 // vírgula, ex.: "https://app.distre.com.br,https://admin.distre.com.br").
@@ -104,6 +113,26 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST']
   }
 });
+
+// Multi-instância: com REDIS_URL definido, os broadcasts do socket.io são propagados
+// entre réplicas via Redis pub/sub. Sem REDIS_URL = instância única (idêntico ao atual).
+// NOTA: o estado autoritativo (deliveries/drivers) ainda é por-instância — ver
+// docs/ESCALA_MULTI_INSTANCIA.md para o roadmap de estado compartilhado + sticky sessions.
+async function configurarAdapterRedis(): Promise<void> {
+  const url = process.env.REDIS_URL;
+  if (!url) return;
+  try {
+    const pubClient = createClient({ url });
+    const subClient = pubClient.duplicate();
+    pubClient.on('error', (e) => console.error('[Redis] pub error:', e?.message));
+    subClient.on('error', (e) => console.error('[Redis] sub error:', e?.message));
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('[Socket] Adapter Redis ativo — broadcasts propagados entre instâncias.');
+  } catch (e) {
+    console.error('[Socket] Falha ao configurar adapter Redis (seguindo single-instance):', (e as Error)?.message);
+  }
+}
 
 // Transmite eventos do Broker para todos os clientes WebSocket
 broker.registerBroadcastCallback((event, queueSize) => {
@@ -358,8 +387,10 @@ setInterval(() => {
   };
   const todasEntregas = Array.from(deliveries.values());
 
-  // Emite para admin/sem-sessão: todos os dados
-  io.to('admin').emit('system_status', {
+  // Emite para admin/sem-sessão: todos os dados.
+  // io.local: cada instância envia o snapshot do SEU estado só aos SEUS clientes —
+  // evita snapshots conflitantes entre réplicas (o adapter Redis propagaria o full-state).
+  io.local.to('admin').emit('system_status', {
     deliveries: todasEntregas,
     drivers,
     agents: agentStates,
@@ -372,7 +403,7 @@ setInterval(() => {
   for (const loja of lojas) {
     const entregasLoja = todasEntregas.filter(d => d.lojaId === loja.id);
     const driversLoja = drivers.filter(d => d.lojaId === loja.id);
-    io.to(`loja-${loja.id}`).emit('system_status', {
+    io.local.to(`loja-${loja.id}`).emit('system_status', {
       deliveries: entregasLoja,
       drivers: driversLoja,
       agents: agentStates,
@@ -410,11 +441,19 @@ async function startServer() {
   // Inicializa o módulo financeiro (seed + rotina de inadimplência)
   await inicializarFinanceiro();
 
-  // Inicia o worker que processa a fila de webhooks de pagamento (retry/backoff/DLQ)
-  iniciarWorkerWebhooks();
+  // Workers singleton (webhook + dunning): em deploy multi-instância, rode-os em UMA
+  // instância (RUN_BACKGROUND_JOBS=true) e desligue nas demais (web) para evitar
+  // processamento duplicado da fila de pagamentos e da régua de cobrança. Default = ligado.
+  const runJobs = (process.env.RUN_BACKGROUND_JOBS ?? 'true').toLowerCase() !== 'false';
+  if (runJobs) {
+    iniciarWorkerWebhooks();
+    iniciarDunning();
+  } else {
+    console.log('[Boot] RUN_BACKGROUND_JOBS=false — workers de webhook/dunning desligados nesta instância.');
+  }
 
-  // Inicia a régua de cobrança automatizada (D-3/D0/D+3/D+7 + suspensão)
-  iniciarDunning();
+  // Multi-instância: liga o adapter Redis do socket.io se REDIS_URL estiver definido.
+  await configurarAdapterRedis();
 
   httpServer.listen(port, () => {
     console.log(`==================================================`);
