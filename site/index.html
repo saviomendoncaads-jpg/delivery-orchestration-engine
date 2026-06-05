@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Distre — Orquestração de Entregas para Empresas</title>
+<meta name="description" content="Plataforma de orquestração de entregas para farmácias, restaurantes e varejo: despacho automático, rastreio em tempo real, comprovação de entrega e integração com seu sistema de vendas." />
+<style>
+  /* ============ DESIGN TOKENS ============ */
+  :root {
+    /* Cor — paleta do produto (tema escuro premium) */
+    --bg-900: #0d1117;
+    --bg-800: #121824;
+    --surface: #202636;
+    --surface-2: #2a3142;
+    --border: #313a4f;
+    --border-strong: #3f4a63;
+
+    --text-hi: #f3f6fb;
+    --text: #c4ccda;
+    --text-lo: #8b97ac;
+
+    --accent: #00bcd4;     /* ciano */
+    --accent-600: #00a5bb;
+    --accent-700: #008ca0;
+    --on-accent: #04121a;  /* texto sobre ciano — contraste AAA */
+
+    --green: #4caf50;
+    --green-600: #43a047;
+    --on-green: #06140a;
+
+    --danger: #ff5a5f;
+    --warn: #ffb020;
+
+    /* Espaçamento — grid de 8pt */
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+    --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px;
+
+    /* Tipografia — escala 1.25 */
+    --t-xs: 0.8rem; --t-sm: 0.9rem; --t-base: 1rem; --t-md: 1.25rem;
+    --t-lg: 1.563rem; --t-xl: 1.953rem; --t-2xl: 2.441rem; --t-3xl: 3.052rem;
+
+    --radius: 12px; --radius-sm: 8px; --radius-lg: 20px;
+    --ring: 0 0 0 2px var(--bg-900), 0 0 0 4px var(--accent);
+    --shadow: 0 10px 40px -12px rgba(0,0,0,.6);
+    --shadow-accent: 0 12px 40px -10px rgba(0,188,212,.35);
+    --maxw: 1140px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+    background: var(--bg-900);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: var(--t-base);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { color: var(--text-hi); line-height: 1.15; letter-spacing: -0.02em; font-weight: 700; }
+  a { color: var(--accent); text-decoration: none; }
+  :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--radius-sm); }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--s5); }
+  .accent { color: var(--accent); }
+  .green { color: var(--green); }
+  .muted { color: var(--text-lo); }
+
+  /* ============ BOTÕES (alvos grandes — Lei de Fitts) ============ */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
+    min-height: 48px; padding: 0 var(--s5);
+    border-radius: var(--radius-sm); border: 1px solid transparent;
+    font-size: var(--t-base); font-weight: 600; cursor: pointer;
+    transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease;
+    white-space: nowrap; text-decoration: none;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-accent); }
+  .btn-primary:hover { background: var(--accent-600); }
+  .btn-ghost { background: transparent; color: var(--text-hi); border-color: var(--border-strong); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: var(--green); color: var(--on-green); }
+  .btn-green:hover { background: var(--green-600); }
+  .btn-block { width: 100%; }
+  .btn[disabled] { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+  /* ============ HEADER ============ */
+  header.nav {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(13,17,23,.82); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .logo { display: flex; align-items: center; gap: var(--s2); font-weight: 800; font-size: var(--t-md); color: var(--text-hi); letter-spacing: -0.03em; }
+  .logo .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+  .nav-links { display: flex; align-items: center; gap: var(--s5); }
+  .nav-links a.link { color: var(--text); font-size: var(--t-sm); font-weight: 500; }
+  .nav-links a.link:hover { color: var(--text-hi); }
+  @media (max-width: 760px){ .nav-links .link { display:none; } }
+
+  /* ============ HERO ============ */
+  .hero { position: relative; padding: var(--s9) 0 var(--s8); overflow: hidden; }
+  .hero::before {
+    content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(60% 50% at 70% 0%, rgba(0,188,212,.16), transparent 60%),
+      radial-gradient(40% 40% at 10% 20%, rgba(76,175,80,.10), transparent 60%);
+    pointer-events:none;
+  }
+  .hero .wrap { position: relative; }
+  .badge-pill {
+    display:inline-flex; align-items:center; gap:var(--s2);
+    padding: 6px 14px; border:1px solid var(--border-strong); border-radius:999px;
+    font-size: var(--t-xs); color: var(--text); background: var(--bg-800); margin-bottom: var(--s5);
+  }
+  .hero h1 { font-size: var(--t-3xl); max-width: 16ch; }
+  .hero p.sub { font-size: var(--t-md); color: var(--text); max-width: 58ch; margin-top: var(--s5); }
+  .hero-cta { display:flex; gap: var(--s3); margin-top: var(--s6); flex-wrap: wrap; }
+  .hero-note { margin-top: var(--s4); font-size: var(--t-sm); color: var(--text-lo); }
+  @media (max-width: 760px){ .hero h1{ font-size: var(--t-2xl);} .hero{ padding: var(--s8) 0 var(--s7);} }
+
+  /* ============ SEÇÕES ============ */
+  section { padding: var(--s8) 0; }
+  .eyebrow { color: var(--accent); font-size: var(--t-sm); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .section-head { max-width: 56ch; margin-bottom: var(--s7); }
+  .section-head h2 { font-size: var(--t-2xl); margin-top: var(--s3); }
+  .section-head p { margin-top: var(--s3); color: var(--text); font-size: var(--t-md); }
+
+  /* Capacidades / prova */
+  .grid { display: grid; gap: var(--s4); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px){ .grid-3,.grid-4 { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px){ .grid-3,.grid-4 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: var(--s5);
+  }
+  .card .ic { width: 40px; height: 40px; border-radius: 10px; display:grid; place-items:center; background: rgba(0,188,212,.12); color: var(--accent); font-size: 20px; margin-bottom: var(--s3); }
+  .card h3 { font-size: var(--t-md); margin-bottom: var(--s2); }
+  .card p { font-size: var(--t-sm); color: var(--text-lo); }
+
+  /* Como funciona */
+  .steps { counter-reset: step; }
+  .step { display:flex; gap: var(--s4); align-items:flex-start; }
+  .step .num {
+    flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bg-800); border:1px solid var(--border-strong); color: var(--accent);
+    display:grid; place-items:center; font-weight:800;
+  }
+  .step h3 { font-size: var(--t-md); }
+  .step p { font-size: var(--t-sm); color: var(--text-lo); margin-top: 2px; }
+
+  /* ============ PRICING ============ */
+  .pricing-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--s4); align-items: stretch; }
+  .plan {
+    position: relative; background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius-lg); padding: var(--s6) var(--s5); display:flex; flex-direction:column;
+    transition: border-color .15s, transform .15s;
+  }
+  .plan:hover { border-color: var(--border-strong); transform: translateY(-3px); }
+  .plan.popular { border-color: var(--accent); box-shadow: var(--shadow-accent); }
+  .plan .tag-pop { position:absolute; top:-12px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); font-size:var(--t-xs); font-weight:700; padding:4px 12px; border-radius:999px; }
+  .plan .pname { font-size: var(--t-md); color: var(--text-hi); font-weight:700; }
+  .plan .pdesc { font-size: var(--t-sm); color: var(--text-lo); margin-top: var(--s2); min-height: 3.2em; }
+  .plan .price { margin: var(--s4) 0; }
+  .plan .price .val { font-size: var(--t-2xl); color: var(--text-hi); font-weight: 800; letter-spacing: -0.03em; }
+  .plan .price .per { color: var(--text-lo); font-size: var(--t-sm); }
+  .plan ul { list-style: none; margin: var(--s4) 0; display: grid; gap: var(--s3); }
+  .plan li { font-size: var(--t-sm); display:flex; gap: var(--s2); align-items: flex-start; }
+  .plan li .ck { color: var(--green); flex: 0 0 auto; }
+  .plan .btn { margin-top: auto; }
+  .price-skel { height: 360px; border-radius: var(--radius-lg); background: linear-gradient(90deg,var(--surface),var(--surface-2),var(--surface)); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* ============ FAQ ============ */
+  .faq details { border-bottom: 1px solid var(--border); padding: var(--s4) 0; }
+  .faq summary { cursor: pointer; font-weight: 600; color: var(--text-hi); font-size: var(--t-md); list-style: none; display:flex; justify-content: space-between; align-items:center; gap: var(--s4); }
+  .faq summary::-webkit-details-marker { display:none; }
+  .faq summary .chev { transition: transform .2s; color: var(--accent); }
+  .faq details[open] summary .chev { transform: rotate(45deg); }
+  .faq p { color: var(--text-lo); font-size: var(--t-sm); margin-top: var(--s3); max-width: 70ch; }
+
+  /* ============ CTA FINAL ============ */
+  .cta-final { background: linear-gradient(180deg, var(--bg-800), var(--surface)); border:1px solid var(--border); border-radius: var(--radius-lg); padding: var(--s8) var(--s6); text-align:center; }
+  .cta-final h2 { font-size: var(--t-2xl); }
+  .cta-final p { color: var(--text); margin: var(--s3) auto var(--s6); max-width: 50ch; }
+
+  footer { border-top: 1px solid var(--border); padding: var(--s6) 0; color: var(--text-lo); font-size: var(--t-sm); }
+  .foot-inner { display:flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s4); }
+
+  /* ============ MODAL DE CADASTRO ============ */
+  .overlay { position: fixed; inset: 0; z-index: 60; background: rgba(5,8,12,.7); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: var(--s5); overflow-y: auto; }
+  .overlay.open { display: flex; }
+  .modal { width: 100%; max-width: 560px; background: var(--bg-800); border:1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow); margin: var(--s6) 0; }
+  .modal-head { display:flex; justify-content: space-between; align-items:center; padding: var(--s5) var(--s5) 0; }
+  .modal-head .x { background:none; border:none; color: var(--text-lo); font-size: 26px; cursor:pointer; line-height:1; }
+  .modal-head .x:hover { color: var(--text-hi); }
+  .modal-body { padding: var(--s5); }
+
+  /* Stepper */
+  .stepper { display:flex; gap: var(--s2); margin-bottom: var(--s5); }
+  .stepper .seg { flex:1; height: 6px; border-radius: 999px; background: var(--surface-2); }
+  .stepper .seg.done { background: var(--green); }
+  .stepper .seg.now { background: var(--accent); }
+  .step-label { font-size: var(--t-xs); color: var(--text-lo); margin-bottom: var(--s4); text-transform: uppercase; letter-spacing: .08em; }
+
+  /* Form */
+  .field { margin-bottom: var(--s4); }
+  .field label { display:block; font-size: var(--t-sm); color: var(--text); margin-bottom: 6px; font-weight: 500; }
+  .field label .req { color: var(--accent); }
+  .field input, .field select {
+    width: 100%; min-height: 48px; padding: 0 var(--s4);
+    background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text-hi); font-size: var(--t-base); font-family: inherit;
+  }
+  .field input::placeholder { color: #5c6679; }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field.invalid input, .field.invalid select { border-color: var(--danger); }
+  .field .err { color: var(--danger); font-size: var(--t-xs); margin-top: 4px; display:none; }
+  .field.invalid .err { display:block; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+  .row-3 { display:grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--s3); }
+  @media (max-width: 480px){ .row, .row-3 { grid-template-columns: 1fr; } }
+  .check { display:flex; gap: var(--s3); align-items:flex-start; background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-sm); padding: var(--s3) var(--s4); }
+  .check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); }
+  .check .ct { font-size: var(--t-sm); }
+  .check .ct small { color: var(--text-lo); }
+
+  .form-actions { display:flex; gap: var(--s3); margin-top: var(--s5); }
+  .form-actions .btn { flex: 1; }
+
+  .form-error { background: rgba(255,90,95,.1); border:1px solid rgba(255,90,95,.4); color: #ffb3b5; border-radius: var(--radius-sm); padding: var(--s3) var(--s4); font-size: var(--t-sm); margin-bottom: var(--s4); display:none; }
+  .form-error.show { display:block; }
+
+  /* Resumo plano dentro do form */
+  .plan-pick { display:flex; gap: var(--s3); align-items:center; background: var(--surface); border:1px solid var(--border); border-radius: var(--radius-sm); padding: var(--s3) var(--s4); margin-bottom: var(--s4); }
+  .plan-pick .pp-name { font-weight: 700; color: var(--text-hi); }
+  .plan-pick .pp-val { margin-left:auto; color: var(--accent); font-weight: 700; }
+
+  /* Sucesso / Pix */
+  .success-ic { width: 64px; height:64px; border-radius:50%; background: rgba(76,175,80,.14); color: var(--green); display:grid; place-items:center; font-size: 34px; margin: 0 auto var(--s4); }
+  .pix-box { background: var(--surface); border:1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: var(--s4); margin: var(--s4) 0; }
+  .pix-box .lbl { font-size: var(--t-xs); color: var(--text-lo); text-transform: uppercase; letter-spacing:.08em; }
+  .pix-code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: var(--t-xs); color: var(--text-hi); word-break: break-all; background: var(--bg-900); padding: var(--s3); border-radius: 6px; margin: var(--s2) 0; max-height: 96px; overflow:auto; }
+  .kv { display:flex; justify-content: space-between; padding: var(--s2) 0; border-bottom:1px solid var(--border); font-size: var(--t-sm); }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--text-lo); }
+  .kv .v { color: var(--text-hi); font-weight: 600; }
+  .toast { position: fixed; bottom: var(--s5); left:50%; transform: translateX(-50%) translateY(20px); background: var(--green); color: var(--on-green); padding: var(--s3) var(--s5); border-radius: 999px; font-weight:600; font-size: var(--t-sm); opacity:0; transition: all .25s; z-index: 80; pointer-events:none; }
+  .toast.show { opacity:1; transform: translateX(-50%) translateY(0); }
+  .sr-only { position:absolute; width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0; }
+</style>
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <div class="logo"><span class="dot"></span> Distre</div>
+    <nav class="nav-links">
+      <a class="link" href="#como-funciona">Como funciona</a>
+      <a class="link" href="#planos">Planos</a>
+      <a class="link" href="#faq">Dúvidas</a>
+      <a class="link" id="loginLink" href="#">Entrar</a>
+      <button class="btn btn-primary" data-open-signup>Criar conta</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="wrap">
+    <span class="badge-pill">⚡ Operação de entregas, ponta a ponta</span>
+    <h1>Entregas sob controle, do pedido à porta do cliente.</h1>
+    <p class="sub">O Distre orquestra a sua frota: despacha o motoboy automaticamente, rastreia cada rota em tempo real e comprova a entrega (foto, assinatura e CPF) — integrado ao seu sistema de vendas, PDV ou ERP.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary" data-open-signup>Criar minha conta →</button>
+      <a class="btn btn-ghost" href="#planos">Ver planos e preços</a>
+    </div>
+    <p class="hero-note">Pix, Boleto ou Cartão · Sem instalação · Comece a despachar hoje mesmo.</p>
+  </div>
+</section>
+
+<!-- ===================== CAPACIDADES (prova) ===================== -->
+<section id="recursos">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Por que Distre</span>
+      <h2>Tudo que uma operação séria de entregas precisa.</h2>
+      <p>Construído sobre arquitetura orientada a eventos para aguentar alto volume sem perder uma comanda.</p>
+    </div>
+    <div class="grid grid-4">
+      <div class="card"><div class="ic">🛰️</div><h3>Rastreio em tempo real</h3><p>Telemetria GPS ao vivo no painel, com ETA dinâmico e alerta precoce de atraso de SLA.</p></div>
+      <div class="card"><div class="ic">🤖</div><h3>Despacho automático</h3><p>O agente Dispatcher localiza o motoboy e gera a rota otimizada assim que o pedido entra.</p></div>
+      <div class="card"><div class="ic">📸</div><h3>Comprovação (POD)</h3><p>Foto, assinatura, CPF e cerca virtual (geofencing) para auditar e mitigar fraude na entrega.</p></div>
+      <div class="card"><div class="ic">🔌</div><h3>Integra com tudo</h3><p>API de ingestão de pedidos, webhooks para o seu ERP/CRM e assistente de WhatsApp.</p></div>
+      <div class="card"><div class="ic">↩️</div><h3>Logística reversa</h3><p>Cliente ausente, recusa e devolução com baixa por código de barras no balcão.</p></div>
+      <div class="card"><div class="ic">🏬</div><h3>Multi-loja</h3><p>Gerencie várias lojas e frotas com isolamento total de dados por unidade.</p></div>
+      <div class="card"><div class="ic">📊</div><h3>Painel financeiro</h3><p>MRR, inadimplência e previsibilidade de receita das suas operações num lugar só.</p></div>
+      <div class="card"><div class="ic">📴</div><h3>Modo offline</h3><p>O app do entregador enfileira ações sem sinal e sincroniza ao reconectar.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMO FUNCIONA ===================== -->
+<section id="como-funciona" style="background:var(--bg-800);border-block:1px solid var(--border);">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Em 4 passos</span>
+      <h2>Do cadastro à primeira entrega.</h2>
+    </div>
+    <div class="grid" style="gap:var(--s6);">
+      <div class="step"><div class="num">1</div><div><h3>Crie sua conta</h3><p>Cadastre a empresa e a primeira loja, escolha um plano e pague a 1ª mensalidade por Pix em segundos.</p></div></div>
+      <div class="step"><div class="num">2</div><div><h3>Conecte seus pedidos</h3><p>Receba pelo painel, importe do seu e-commerce/ERP via API ou deixe o bot de WhatsApp captar.</p></div></div>
+      <div class="step"><div class="num">3</div><div><h3>O sistema despacha</h3><p>O motoboy é alocado e a rota é gerada automaticamente. Você acompanha tudo no mapa ao vivo.</p></div></div>
+      <div class="step"><div class="num">4</div><div><h3>Entrega comprovada</h3><p>O cliente recebe e o entregador registra foto + assinatura. O webhook avisa seu sistema na hora.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PLANOS ===================== -->
+<section id="planos">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Planos</span>
+      <h2>Preço simples, por loja. Sem surpresa.</h2>
+      <p>Escolha pelo volume da sua operação. Faça upgrade quando crescer.</p>
+    </div>
+    <div class="pricing-grid" id="pricingGrid">
+      <div class="price-skel"></div><div class="price-skel"></div><div class="price-skel"></div>
+    </div>
+    <p class="muted" style="margin-top:var(--s5);font-size:var(--t-sm)">💳 Pagamento por Pix, Boleto ou Cartão · Cobrança mensal por loja · Cancele quando quiser.</p>
+  </div>
+</section>
+
+<!-- ===================== FAQ ===================== -->
+<section id="faq" style="background:var(--bg-800);border-block:1px solid var(--border);">
+  <div class="wrap" style="max-width:840px;">
+    <div class="section-head"><span class="eyebrow">Dúvidas frequentes</span><h2>Perguntas que toda empresa faz.</h2></div>
+    <div class="faq">
+      <details open><summary>Como funciona a cobrança? <span class="chev">+</span></summary><p>A cobrança é mensal e por loja. Ao criar a conta você recebe a fatura da 1ª mensalidade (Pix, Boleto ou Cartão). O painel é liberado e, se a fatura vencer sem pagamento, há um período de carência antes de qualquer bloqueio.</p></details>
+      <details><summary>Quais formas de pagamento? <span class="chev">+</span></summary><p>Pix (aprovação na hora), Boleto bancário e Cartão de crédito — processados por gateway certificado. O Pix copia-e-cola aparece logo após o cadastro.</p></details>
+      <details><summary>Preciso instalar algo? <span class="chev">+</span></summary><p>Não. O painel roda no navegador e o app do entregador também. Você consegue começar a despachar no mesmo dia.</p></details>
+      <details><summary>Dá para integrar com meu sistema de vendas/ERP? <span class="chev">+</span></summary><p>Sim. Temos endpoints públicos de integração para ingestão de pedidos e de entregas (TOTVS, SAP, Bling, Tiny, e-commerce próprio) e webhooks de status para o seu sistema.</p></details>
+      <details><summary>Posso ter mais de uma loja? <span class="chev">+</span></summary><p>Sim. Cada loja tem seus próprios motoristas, pedidos e isolamento de dados. Os planos maiores ampliam o limite de lojas, motoristas e entregas/mês.</p></details>
+      <details><summary>Como cancelo? <span class="chev">+</span></summary><p>Sem fidelidade. Você cancela quando quiser e mantém o acesso até o fim do ciclo já pago.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CTA FINAL ===================== -->
+<section>
+  <div class="wrap">
+    <div class="cta-final">
+      <h2>Pronto para tirar suas entregas do caos?</h2>
+      <p>Crie sua conta, pague por Pix e comece a despachar com rastreio e comprovação ainda hoje.</p>
+      <button class="btn btn-primary" data-open-signup>Criar minha conta agora →</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div class="logo" style="font-size:var(--t-base)"><span class="dot"></span> Distre</div>
+    <span>© <span id="year"></span> Distre · Orquestração de Entregas. Todos os direitos reservados.</span>
+  </div>
+</footer>
+
+<!-- ===================== MODAL DE CADASTRO ===================== -->
+<div class="overlay" id="signupOverlay" role="dialog" aria-modal="true" aria-labelledby="signupTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="signupTitle" style="font-size:var(--t-md)">Criar conta</h3>
+      <button class="x" id="closeSignup" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="stepper" id="stepper" aria-hidden="true">
+        <div class="seg now"></div><div class="seg"></div><div class="seg"></div>
+      </div>
+
+      <div class="form-error" id="formError" role="alert"></div>
+
+      <form id="signupForm" novalidate>
+        <!-- STEP 1 — EMPRESA -->
+        <div class="step-pane" data-step="0">
+          <div class="step-label">Passo 1 de 3 · Sua empresa</div>
+          <div class="field"><label>Razão social / Nome da empresa <span class="req">*</span></label><input name="emp_nome" autocomplete="organization" placeholder="Ex.: Farmácia Saúde Ltda" /><div class="err">Informe o nome da empresa.</div></div>
+          <div class="row">
+            <div class="field"><label>CNPJ <span class="req">*</span></label><input name="emp_cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" /><div class="err">Informe um CNPJ válido.</div></div>
+            <div class="field"><label>Telefone</label><input name="emp_telefone" inputmode="tel" placeholder="(11) 99999-9999" /><div class="err"></div></div>
+          </div>
+          <div class="field"><label>E-mail financeiro <span class="req">*</span></label><input name="emp_email" type="email" autocomplete="email" placeholder="financeiro@suaempresa.com.br" /><div class="err">Informe um e-mail válido.</div></div>
+          <div class="form-actions"><button type="button" class="btn btn-primary btn-block" data-next>Continuar →</button></div>
+        </div>
+
+        <!-- STEP 2 — LOJA -->
+        <div class="step-pane" data-step="1" hidden>
+          <div class="step-label">Passo 2 de 3 · Sua primeira loja</div>
+          <div class="field"><label>Nome da loja <span class="req">*</span></label><input name="loja_nome" placeholder="Ex.: Saúde - Centro" /><div class="err">Informe o nome da loja.</div></div>
+          <div class="row-3">
+            <div class="field"><label>Endereço <span class="req">*</span></label><input name="loja_endereco" autocomplete="street-address" placeholder="Av. Paulista" /><div class="err">Informe o endereço.</div></div>
+            <div class="field"><label>Número</label><input name="loja_numero" placeholder="1000" /><div class="err"></div></div>
+            <div class="field"><label>CEP</label><input name="loja_cep" inputmode="numeric" placeholder="01310-000" /><div class="err"></div></div>
+          </div>
+          <div class="row-3">
+            <div class="field"><label>Bairro</label><input name="loja_bairro" placeholder="Bela Vista" /><div class="err"></div></div>
+            <div class="field"><label>Cidade <span class="req">*</span></label><input name="loja_cidade" placeholder="São Paulo" /><div class="err">Informe a cidade.</div></div>
+            <div class="field"><label>UF <span class="req">*</span></label><input name="loja_uf" maxlength="2" placeholder="SP" style="text-transform:uppercase" /><div class="err">UF.</div></div>
+          </div>
+          <div class="check">
+            <input type="checkbox" name="loja_recebe" id="loja_recebe" />
+            <div class="ct"><label for="loja_recebe" style="margin:0;color:var(--text-hi)">Minha loja prepara o pedido</label><br><small>Marque se há etapa de preparo (cozinha, separação) antes da entrega.</small></div>
+          </div>
+          <div class="form-actions"><button type="button" class="btn btn-ghost" data-back>← Voltar</button><button type="button" class="btn btn-primary" data-next>Continuar →</button></div>
+        </div>
+
+        <!-- STEP 3 — ACESSO + PLANO -->
+        <div class="step-pane" data-step="2" hidden>
+          <div class="step-label">Passo 3 de 3 · Acesso e plano</div>
+          <div class="plan-pick" id="planPick">
+            <div><div class="pp-name" id="ppName">—</div><small class="muted" id="ppDesc"></small></div>
+            <div class="pp-val" id="ppVal"></div>
+          </div>
+          <div class="field"><label>Plano <span class="req">*</span></label><select name="planoId" id="planoSelect"></select><div class="err">Escolha um plano.</div></div>
+          <div class="row">
+            <div class="field"><label>Usuário de acesso <span class="req">*</span></label><input name="loja_usuario" autocomplete="username" placeholder="ex.: saudecentro" /><div class="err">Escolha um usuário.</div></div>
+            <div class="field"><label>Dia de vencimento</label><select name="diaVencimento" id="diaVenc"></select><div class="err"></div></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Senha <span class="req">*</span></label><input name="loja_senha" type="password" autocomplete="new-password" placeholder="mín. 6 caracteres" /><div class="err">Mínimo de 6 caracteres.</div></div>
+            <div class="field"><label>Confirmar senha <span class="req">*</span></label><input name="loja_senha2" type="password" autocomplete="new-password" placeholder="repita a senha" /><div class="err">As senhas não conferem.</div></div>
+          </div>
+          <div class="form-actions"><button type="button" class="btn btn-ghost" data-back>← Voltar</button><button type="submit" class="btn btn-green" id="submitBtn">Criar conta e gerar Pix</button></div>
+        </div>
+      </form>
+
+      <!-- SUCESSO / PIX -->
+      <div id="successPane" hidden>
+        <div class="success-ic">✓</div>
+        <h3 style="text-align:center;font-size:var(--t-lg)">Conta criada! 🎉</h3>
+        <p style="text-align:center;color:var(--text-lo);font-size:var(--t-sm);margin-top:var(--s2)">Pague a 1ª mensalidade para ativar seu painel.</p>
+
+        <div class="pix-box">
+          <div class="lbl">Pix copia e cola</div>
+          <div class="pix-code" id="pixCode">—</div>
+          <button class="btn btn-primary btn-block" id="copyPix">Copiar código Pix</button>
+          <a class="btn btn-ghost btn-block" id="boletoLink" style="margin-top:var(--s2);display:none" target="_blank" rel="noopener">Pagar com Boleto / Cartão</a>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--s4);margin-bottom:var(--s4)">
+          <div class="kv"><span class="k">Plano</span><span class="v" id="okPlano">—</span></div>
+          <div class="kv"><span class="k">Valor</span><span class="v" id="okValor">—</span></div>
+          <div class="kv"><span class="k">Vencimento</span><span class="v" id="okVenc">—</span></div>
+          <div class="kv"><span class="k">Seu usuário</span><span class="v" id="okUser">—</span></div>
+          <div class="kv"><span class="k">Chave de acesso</span><span class="v" id="okChave">—</span></div>
+        </div>
+        <a class="btn btn-green btn-block" id="goPanel">Ir para o painel →</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  // Configurável: ?api=https://api.seudominio.com  |  ?panel=https://app.seudominio.com
+  var qs = new URLSearchParams(location.search);
+  var BACKEND_URL = (qs.get('api') || 'http://localhost:5000').replace(/\/$/, '');
+  var PANEL_URL = (qs.get('panel') || 'http://localhost:5173').replace(/\/$/, '');
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  $('#year').textContent = new Date().getFullYear();
+  $('#loginLink').href = PANEL_URL;
+  $('#goPanel').href = PANEL_URL;
+
+  var planos = [];
+  var planoEscolhido = null;
+
+  function brl(n) {
+    return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  function limite(v, sufixo) { return v == null ? 'Ilimitado' : (Number(v).toLocaleString('pt-BR') + ' ' + sufixo); }
+
+  function toast(msg) {
+    var t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+
+  // ---------- PRICING (GET /api/planos) ----------
+  function popularidade(p, i, arr) {
+    // Heurística: destaca o plano 'silver' se existir, senão o 2º mais barato.
+    if (p.id === 'silver') return true;
+    if (!arr.some(function (x) { return x.id === 'silver'; })) return i === 1;
+    return false;
+  }
+
+  function renderPlanos() {
+    var grid = $('#pricingGrid');
+    if (!planos.length) {
+      grid.innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center"><p>Não foi possível carregar os planos agora. <a href="#" id="retryPlanos">Tentar de novo</a></p></div>';
+      var r = $('#retryPlanos'); if (r) r.onclick = function (e) { e.preventDefault(); carregarPlanos(); };
+      return;
+    }
+    grid.innerHTML = planos.map(function (p, i) {
+      var pop = popularidade(p, i, planos);
+      return '' +
+        '<div class="plan' + (pop ? ' popular' : '') + '">' +
+          (pop ? '<span class="tag-pop">Mais popular</span>' : '') +
+          '<div class="pname">' + esc(p.nome) + '</div>' +
+          '<div class="pdesc">' + esc(p.descricao || '') + '</div>' +
+          '<div class="price"><span class="val">' + brl(p.valorMensal) + '</span> <span class="per">/ mês por loja</span></div>' +
+          '<ul>' +
+            '<li><span class="ck">✓</span> ' + limite(p.limiteEntregasMes, 'entregas/mês') + '</li>' +
+            '<li><span class="ck">✓</span> ' + limite(p.limiteLojas, 'lojas') + '</li>' +
+            '<li><span class="ck">✓</span> ' + limite(p.limiteMotoristas, 'motoristas') + '</li>' +
+            '<li><span class="ck">✓</span> Rastreio, POD e integrações inclusos</li>' +
+          '</ul>' +
+          '<button class="btn ' + (pop ? 'btn-primary' : 'btn-ghost') + '" data-plano="' + esc(p.id) + '">Assinar ' + esc(p.nome) + '</button>' +
+        '</div>';
+    }).join('');
+    $$('[data-plano]', grid).forEach(function (b) {
+      b.onclick = function () { abrirSignup(b.getAttribute('data-plano')); };
+    });
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+
+  function carregarPlanos() {
+    fetch(BACKEND_URL + '/api/planos')
+      .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      .then(function (data) { planos = Array.isArray(data) ? data : []; renderPlanos(); preencherSelectPlano(); })
+      .catch(function () { planos = []; renderPlanos(); });
+  }
+
+  function preencherSelectPlano() {
+    var sel = $('#planoSelect');
+    sel.innerHTML = planos.map(function (p) {
+      return '<option value="' + esc(p.id) + '">' + esc(p.nome) + ' — ' + brl(p.valorMensal) + '/mês</option>';
+    }).join('');
+    sel.onchange = function () { setPlano(sel.value); };
+  }
+
+  function setPlano(id) {
+    planoEscolhido = planos.filter(function (p) { return p.id === id; })[0] || planos[0] || null;
+    if (!planoEscolhido) return;
+    $('#planoSelect').value = planoEscolhido.id;
+    $('#ppName').textContent = planoEscolhido.nome;
+    $('#ppDesc').textContent = planoEscolhido.descricao || '';
+    $('#ppVal').textContent = brl(planoEscolhido.valorMensal) + '/mês';
+  }
+
+  // dias de vencimento 1..28
+  (function () {
+    var d = $('#diaVenc'); var html = '';
+    for (var i = 1; i <= 28; i++) html += '<option value="' + i + '"' + (i === 10 ? ' selected' : '') + '>Dia ' + i + '</option>';
+    d.innerHTML = html;
+  })();
+
+  // ---------- MODAL + STEPPER ----------
+  var overlay = $('#signupOverlay'), form = $('#signupForm'), curStep = 0;
+  var panes = $$('.step-pane', form);
+
+  function abrirSignup(planoId) {
+    if (!planos.length) { carregarPlanos(); }
+    curStep = 0; showStep(0);
+    $('#successPane').hidden = true; form.hidden = false; $('#stepper').style.display = 'flex';
+    clearError();
+    setPlano(planoId || (planoEscolhido && planoEscolhido.id) || (planos[0] && planos[0].id));
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    var first = panes[0].querySelector('input'); if (first) setTimeout(function () { first.focus(); }, 60);
+  }
+  function fecharSignup() { overlay.classList.remove('open'); document.body.style.overflow = ''; }
+
+  $$('[data-open-signup]').forEach(function (b) { b.onclick = function () { abrirSignup(); }; });
+  $('#closeSignup').onclick = fecharSignup;
+  overlay.onclick = function (e) { if (e.target === overlay) fecharSignup(); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && overlay.classList.contains('open')) fecharSignup(); });
+
+  function showStep(n) {
+    panes.forEach(function (p, i) { p.hidden = i !== n; });
+    var segs = $$('#stepper .seg');
+    segs.forEach(function (s, i) { s.className = 'seg' + (i < n ? ' done' : i === n ? ' now' : ''); });
+    curStep = n;
+  }
+
+  // validação por passo
+  var REQ = {
+    0: [['emp_nome', notEmpty], ['emp_cnpj', cnpjOk], ['emp_email', emailOk]],
+    1: [['loja_nome', notEmpty], ['loja_endereco', notEmpty], ['loja_cidade', notEmpty], ['loja_uf', ufOk]],
+    2: [['loja_usuario', notEmpty], ['loja_senha', senhaOk], ['loja_senha2', senha2Ok], ['planoId', notEmpty]]
+  };
+  function notEmpty(v) { return v && v.trim().length > 0; }
+  function emailOk(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim()); }
+  function cnpjOk(v) { return (v || '').replace(/\D/g, '').length >= 11; } // aceita CPF/CNPJ
+  function ufOk(v) { return /^[A-Za-z]{2}$/.test((v || '').trim()); }
+  function senhaOk(v) { return (v || '').length >= 6; }
+  function senha2Ok(v) { return v === field('loja_senha').value; }
+
+  function field(name) { return form.querySelector('[name="' + name + '"]'); }
+  function setInvalid(name, bad) {
+    var el = field(name); if (!el) return;
+    el.closest('.field').classList.toggle('invalid', !!bad);
+  }
+  function validateStep(n) {
+    var ok = true, firstBad = null;
+    (REQ[n] || []).forEach(function (rule) {
+      var bad = !rule[1](field(rule[0]).value);
+      setInvalid(rule[0], bad);
+      if (bad && !firstBad) firstBad = field(rule[0]);
+      if (bad) ok = false;
+    });
+    if (firstBad) firstBad.focus();
+    return ok;
+  }
+
+  // validação inline onBlur
+  $$('input,select', form).forEach(function (el) {
+    el.addEventListener('blur', function () {
+      var rule = (REQ[curStep] || []).filter(function (r) { return r[0] === el.name; })[0];
+      if (rule) setInvalid(el.name, !rule[1](el.value));
+    });
+  });
+
+  $$('[data-next]', form).forEach(function (b) { b.onclick = function () { if (validateStep(curStep)) showStep(curStep + 1); }; });
+  $$('[data-back]', form).forEach(function (b) { b.onclick = function () { showStep(curStep - 1); }; });
+
+  function showError(msg) { var e = $('#formError'); e.textContent = msg; e.classList.add('show'); e.scrollIntoView({ block: 'nearest' }); }
+  function clearError() { $('#formError').classList.remove('show'); }
+
+  // ---------- SUBMIT (POST /api/signup) ----------
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (!validateStep(2)) return;
+    clearError();
+
+    var body = {
+      empresa: {
+        nome: field('emp_nome').value.trim(),
+        cnpj: field('emp_cnpj').value.trim(),
+        telefone: field('emp_telefone').value.trim() || undefined,
+        email: field('emp_email').value.trim() || undefined
+      },
+      loja: {
+        nome: field('loja_nome').value.trim(),
+        endereco: field('loja_endereco').value.trim(),
+        numero: field('loja_numero').value.trim() || undefined,
+        bairro: field('loja_bairro').value.trim() || undefined,
+        cidade: field('loja_cidade').value.trim(),
+        uf: field('loja_uf').value.trim().toUpperCase(),
+        cep: field('loja_cep').value.trim() || undefined,
+        usuario: field('loja_usuario').value.trim(),
+        senha: field('loja_senha').value,
+        recebePedidos: field('loja_recebe').checked
+      },
+      planoId: field('planoId').value,
+      diaVencimento: Number($('#diaVenc').value)
+    };
+
+    var btn = $('#submitBtn');
+    btn.disabled = true; var txt = btn.textContent; btn.textContent = 'Criando conta...';
+
+    fetch(BACKEND_URL + '/api/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { throw new Error(res.j && res.j.error ? res.j.error : 'Falha ao criar conta (HTTP ' + res.status + ').'); }
+        mostrarSucesso(res.j);
+      })
+      .catch(function (err) {
+        var msg = err.message;
+        if (/Failed to fetch|NetworkError/i.test(msg)) msg = 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+        showError(msg);
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = txt; });
+  });
+
+  function mostrarSucesso(data) {
+    form.hidden = true; $('#stepper').style.display = 'none'; clearError();
+    var pane = $('#successPane'); pane.hidden = false;
+    var pg = (data.pagamento || {}), as = (data.assinatura || {}), lj = (data.loja || {});
+    $('#pixCode').textContent = pg.pixCopiaCola || '(Pix indisponível — use o boleto/link abaixo)';
+    if (pg.boletoUrl || pg.linkPagamento) {
+      var bl = $('#boletoLink'); bl.style.display = 'flex'; bl.href = pg.boletoUrl || pg.linkPagamento;
+    }
+    $('#okPlano').textContent = as.plano || '—';
+    $('#okValor').textContent = as.valor != null ? brl(as.valor) : '—';
+    $('#okVenc').textContent = as.vencimento ? new Date(as.vencimento).toLocaleDateString('pt-BR') : '—';
+    $('#okUser').textContent = lj.usuario || '—';
+    $('#okChave').textContent = lj.chaveAcesso || '—';
+    pane.scrollIntoView({ block: 'start' });
+  }
+
+  $('#copyPix').onclick = function () {
+    var code = $('#pixCode').textContent || '';
+    if (navigator.clipboard && code) {
+      navigator.clipboard.writeText(code).then(function () { toast('Código Pix copiado!'); });
+    } else { toast('Selecione e copie o código manualmente.'); }
+  };
+
+  carregarPlanos();
+})();
+</script>
+</body>
+</html>
