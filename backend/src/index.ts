@@ -1,3 +1,4 @@
+import 'dotenv/config'; // carrega backend/.env ANTES de tudo (database.ts lê process.env no load)
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
