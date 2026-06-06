@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const h=require\\('fs'\\).readFileSync\\('site/index.html','utf8'\\);const o=\\(h.match\\(/<div/g\\)||[]\\).length,c=\\(h.match\\(/<\\\\/div>/g\\)||[]\\).length;console.log\\('div',o,c,o===c?'OK':'X'\\);\")",
+      "PowerShell(Start-Process \"http://localhost:5000/#ecossistema\")",
+      "Bash(node -e \"const h=require\\('fs'\\).readFileSync\\('site/index.html','utf8'\\);const m=h.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>/\\);require\\('fs'\\).writeFileSync\\('site/_c.js',m[1]\\);\")",
+      "Bash(node --check site/_c.js)",
+      "Bash(rm -f site/_c.js)"
+    ]
+  }
+}
