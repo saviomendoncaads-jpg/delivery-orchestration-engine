@@ -61,7 +61,7 @@
 }
 
 body {
-  background-color: var(--bg-primary);
+  background-color: #023524;
   /* Superfície calma (padrão Linear/Vercel): um único brilho sutil no topo,
      em vez de 3 gradientes concorrentes que poluíam o fundo. */
   background-image:
