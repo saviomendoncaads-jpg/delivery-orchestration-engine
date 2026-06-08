@@ -4659,10 +4659,12 @@ export default function App() {
       {/* 1. App Header */}
       <header className="app-header">
         <div className="logo-section">
-          <div className="logo-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-              <path d="M3 7h6l4 10h8" />
-              <path d="M3 17h6l4-10h8" />
+          <div className="logo-icon" style={{ background: 'transparent', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* Logo oficial Distre — mesmo mark da landing (site/index.html) e da tela de login */}
+            <svg width="40" height="40" viewBox="0 0 32 32" fill="none" aria-hidden="true" style={{ display: 'block' }}>
+              <rect x="1" y="1" width="30" height="30" rx="8" fill="#070d1c" stroke="#1e293b" />
+              <path d="M7 22 L16 6 L25 22" stroke="#2563EB" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+              <path d="M11 22 L16 13 L21 22" stroke="#60A5FA" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
             </svg>
           </div>
           <div>
