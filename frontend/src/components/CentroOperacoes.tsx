@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { BentoItem } from './ui/cybernetic-bento-grid';
 
 /**
  * Centro de Operações — painel operacional AO VIVO.
@@ -160,31 +161,31 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
       <div className="centro-ops">
         {/* Coluna esquerda: KPIs */}
         <div className="centro-ops-kpis">
-          <div className="centro-ops-kpi">
+          <BentoItem className="centro-ops-kpi">
             <div className="label">Em rota</div>
             <div className="value">{m.emRota}</div>
             <div className="sub">{m.despachando} despachando</div>
-          </div>
-          <div className="centro-ops-kpi">
+          </BentoItem>
+          <BentoItem className="centro-ops-kpi">
             <div className="label">SLA prazo</div>
             <div className="value" style={{ color: slaCor }}>{m.slaPct}%</div>
             <div className="sub">{m.slaPct >= META_SLA ? 'acima da meta' : 'abaixo da meta'}</div>
-          </div>
-          <div className="centro-ops-kpi">
+          </BentoItem>
+          <BentoItem className="centro-ops-kpi">
             <div className="label">Entregues</div>
             <div className="value">{m.entregues}</div>
             <div className="sub">hoje</div>
-          </div>
-          <div className="centro-ops-kpi">
+          </BentoItem>
+          <BentoItem className="centro-ops-kpi">
             <div className="label">T. médio</div>
             <div className="value">{m.tempoMedio}<span style={{ fontSize: '0.9rem', fontWeight: 600 }}>m</span></div>
             <div className="sub">por entrega</div>
-          </div>
+          </BentoItem>
         </div>
 
         {/* Coluna direita: gauge de SLA + eventos ao vivo */}
         <div>
-          <div className="centro-ops-gauge">
+          <BentoItem className="centro-ops-gauge">
             <svg width="64" height="64" viewBox="0 0 64 64" style={{ flex: 'none' }}>
               <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
               <circle
@@ -200,9 +201,9 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
                 meta {META_SLA}% · {m.slaPct >= META_SLA ? 'acima' : 'abaixo'} · {m.frotaAtiva} veíc. ativos
               </div>
             </div>
-          </div>
+          </BentoItem>
 
-          <div className="centro-ops-feed">
+          <BentoItem className="centro-ops-feed">
             <div className="centro-ops-feed-title">Eventos ao vivo</div>
             {eventos.length === 0 ? (
               <div className="centro-ops-feed-empty">Aguardando eventos da operação…</div>
@@ -220,7 +221,7 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
                 );
               })
             )}
-          </div>
+          </BentoItem>
         </div>
       </div>
     </section>

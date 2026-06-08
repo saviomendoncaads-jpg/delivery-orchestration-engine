@@ -2785,10 +2785,8 @@ body {
 }
 
 .centro-ops-kpi {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-thin);
-  border-radius: 10px;
-  padding: 0.8rem 0.85rem;
+  /* superfície/borda vêm do .bento-item (glow interativo) */
+  padding: 0.85rem 0.9rem;
 }
 
 .centro-ops-kpi .label {
@@ -2817,18 +2815,12 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-thin);
-  border-radius: 10px;
-  padding: 0.9rem 1rem;
-  margin-bottom: 0.8rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.7rem;
 }
 
 .centro-ops-feed {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-thin);
-  border-radius: 10px;
-  padding: 0.8rem 1rem 0.4rem;
+  padding: 0.85rem 1.1rem 0.5rem;
 }
 
 .centro-ops-feed-title {
@@ -2883,4 +2875,59 @@ body {
 @media (max-width: 520px) {
   .centro-ops-kpis { grid-template-columns: repeat(2, 1fr); }
   .centro-ops-kpi .value { font-size: 1.4rem; }
+}
+
+/* ===================== Cybernetic Bento (glow interativo on-brand) ===================== */
+.bento-grid { display: grid; gap: 0.7rem; }
+
+.bento-item {
+  position: relative;
+  border-radius: 12px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.008));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: border-color 0.35s ease, transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* Spotlight que segue o cursor — a alma "cibernética", na cor da marca */
+.bento-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    300px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(16, 185, 129, 0.20),
+    rgba(6, 182, 212, 0.08) 40%,
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.bento-item:hover::before { opacity: 1; }
+
+.bento-item:hover {
+  border-color: rgba(16, 185, 129, 0.32);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -14px rgba(16, 185, 129, 0.4);
+}
+
+/* Fio de luz no topo — detalhe tech, abre no hover */
+.bento-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+  opacity: 0.4;
+  transition: opacity 0.4s ease, left 0.4s ease, right 0.4s ease;
+  pointer-events: none;
+}
+.bento-item:hover::after { opacity: 0.9; left: 5%; right: 5%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bento-item, .bento-item::before, .bento-item::after { transition: none; }
+  .bento-item:hover { transform: none; }
 }
