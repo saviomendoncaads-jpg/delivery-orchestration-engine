@@ -240,4 +240,41 @@ export function verificarAdmin(req: Request & { sessao?: Sessao }, res: Response
   next();
 }
 
+/**
+ * Middleware de autenticação para os endpoints de integração ERP (/api/integracao/*).
+ * Exige o header X-Api-Key com a chaveAcesso da loja identificada por X-Loja-Id.
+ * Usa comparação em tempo constante para evitar timing attacks.
+ */
+export function verificarApiKeyIntegracao(req: Request, res: Response, next: NextFunction) {
+  const apiKey = (req.header('x-api-key') || '').trim();
+  const lojaId = (req.header('x-loja-id') || (req.body?.lojaId as string | undefined) || '').trim();
+
+  if (!apiKey) {
+    res.status(401).json({ error: 'Header X-Api-Key é obrigatório.' });
+    return;
+  }
+  if (!lojaId) {
+    res.status(400).json({ error: 'Header X-Loja-Id (ou campo lojaId) é obrigatório.' });
+    return;
+  }
+
+  const loja = lojas.find(l => l.id === lojaId);
+  if (!loja) {
+    res.status(404).json({ error: 'Loja não encontrada.' });
+    return;
+  }
+
+  const chave = loja.chaveAcesso || '';
+  const match =
+    apiKey.length === chave.length &&
+    crypto.timingSafeEqual(Buffer.from(apiKey), Buffer.from(chave));
+
+  if (!match) {
+    res.status(403).json({ error: 'API key inválida.' });
+    return;
+  }
+
+  next();
+}
+
 export default router;

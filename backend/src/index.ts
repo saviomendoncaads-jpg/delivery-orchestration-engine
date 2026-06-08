@@ -9,7 +9,7 @@ import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import tenantsRouter, { carregarTenantsDoBanco, lojas } from './tenants';
-import authRouter, { sessions, carregarSessoesDoBanco } from './auth';
+import authRouter, { sessions, carregarSessoesDoBanco, verificarApiKeyIntegracao } from './auth';
 import apiRouter, { deliveries, webhooksReceived, drivers, carregarEntregasDoBanco, carregarMotoristasDoBanco, carregarVeiculosDoBanco } from './gateway';
 import whatsappRouter, { whatsappBotService, whatsappSessions } from './whatsapp';
 import { broker } from './broker';
@@ -94,11 +94,9 @@ app.use('/api/whatsapp', whatsappRouter);
 // Roteador do Módulo Financeiro (admin)
 app.use('/api/admin/financeiro', financeiroRouter);
 
-// Roteador público de integração para receber pedidos externos (sistemas de venda)
-app.use('/api/integracao', integracaoPedidosRouter);
-
-// Roteador público de integração para receber comandas de entrega de ERPs externos
-app.use('/api/integracao', integracaoEntregasRouter);
+// Roteadores de integração ERP: autenticados por API key (X-Api-Key = chaveAcesso da loja)
+app.use('/api/integracao', verificarApiKeyIntegracao, integracaoPedidosRouter);
+app.use('/api/integracao', verificarApiKeyIntegracao, integracaoEntregasRouter);
 
 // Monta o Roteador de API do Gateway Ingress
 app.use('/api', apiRouter);
