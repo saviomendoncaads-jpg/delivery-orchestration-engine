@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
+import CentroOperacoes, { type BrokerEvento } from './components/CentroOperacoes';
 import './App.css';
 
 declare const L: any;
@@ -1065,6 +1066,8 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [allDeliveries, setAllDeliveries] = useState<Entrega[]>([]);
   const [allDrivers, setAllDrivers] = useState<Motorista[]>([]);
+  // Feed de eventos do broker para o Centro de Operações (buffer rolante, filtrado/deduplicado).
+  const [liveEvents, setLiveEvents] = useState<BrokerEvento[]>([]);
   // Coordenadas geográficas da loja recebidas em tempo real via system_status (independem da sessão em cache)
   const [lojaCoordsLive, setLojaCoordsLive] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -1850,6 +1853,7 @@ export default function App() {
       setIsConnected(false);
       setAllDeliveries([]);
       setAllDrivers([]);
+      setLiveEvents([]);
       return;
     }
 
@@ -1925,7 +1929,24 @@ export default function App() {
       // Webhooks recebidos não são mais salvos no estado
     });
 
-    // Evento do broker não é mais monitorado no frontend
+    // Eventos do broker → feed do "Centro de Operações" (buffer rolante, filtra ruído).
+    socket.on('broker_event', (data: any) => {
+      const ev = data?.event as BrokerEvento | undefined;
+      if (!ev || !ev.topic) return;
+      if (ev.topic === 'GPS_HEARTBEAT') return; // telemetria de alta frequência: descarta
+      if (ev.topic === 'entrega.monitorada') {
+        const s = ev.payload?.status;
+        const relevante = s === 'ENTREGUE' || s === 'NO_LOCAL' || s === 'RECUSADO_INSUCESSO' || s === 'AGUARDANDO_RETORNO_CD' || s === 'PRODUTO_RETORNADO_ESTOQUE';
+        if (!relevante) return; // ignora updates contínuos de EM_TRANSITO/telemetria
+      }
+      setLiveEvents(prev => {
+        const last = prev[0];
+        const sig = `${ev.topic}|${ev.deliveryId}|${ev.payload?.status ?? ''}`;
+        const lastSig = last ? `${last.topic}|${last.deliveryId}|${last.payload?.status ?? ''}` : '';
+        if (sig === lastSig) return prev; // dedupe de publicações consecutivas idênticas
+        return [ev, ...prev].slice(0, 40);
+      });
+    });
 
     // ---- Listeners do Simulador de WhatsApp ----
     socket.on('whatsapp_msg_received', (data: { phone: string; sender: 'customer' | 'bot'; text: string; timestamp: string }) => {
@@ -2986,8 +3007,14 @@ export default function App() {
       <div className="login-page">
         <div className="login-card">
           <div className="login-logo">
-            <div className="logo-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>D</div>
-            <h2>DISTRE</h2>
+            <div className="login-brand">
+              <svg className="login-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="30" height="30" rx="8" fill="#070d1c" stroke="#1e293b" />
+                <path d="M7 22 L16 6 L25 22" stroke="#2563EB" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+                <path d="M11 22 L16 13 L21 22" stroke="#60A5FA" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+              <span className="login-word">DISTRE</span>
+            </div>
             <p>Orquestração e Gestão de Entregas</p>
           </div>
           
@@ -4716,6 +4743,14 @@ export default function App() {
           ))}
         </div>
       )}
+
+      {/* Centro de Operações — painel operacional ao vivo (KPIs + SLA + eventos) */}
+      <CentroOperacoes
+        deliveries={deliveries}
+        drivers={drivers}
+        liveEvents={liveEvents}
+        zona={sessao?.nomeLoja || currentLoja?.nome || undefined}
+      />
 
       {/* 3. Seção de Entregas Cadastradas (Comandas) */}
       <section className="glass-panel deliveries-top-panel glow-cyan">
