@@ -80,7 +80,11 @@ export class MonitorAgent {
 
       // Lógica Sequencial de Agrupamento
       const { deliveryId, status } = event.payload;
-      if (status === 'ENTREGUE' || status === 'RECUSADO_INSUCESSO' || status === 'PRODUTO_RETORNADO_ESTOQUE') {
+      // AGUARDANDO_RETORNO_CD entra aqui de propósito: quando o motorista desiste de uma parada
+      // (ex.: cliente ausente) e fica em custódia reversa, a FILA DEVE AVANÇAR para a próxima
+      // entrega. Ele segue a própria rota e devolve o item ao CD no fim — sem ficar preso
+      // esperando liberação manual da central.
+      if (status === 'ENTREGUE' || status === 'RECUSADO_INSUCESSO' || status === 'PRODUTO_RETORNADO_ESTOQUE' || status === 'AGUARDANDO_RETORNO_CD') {
          const finishedDelivery = deliveries.get(deliveryId);
          if (finishedDelivery && finishedDelivery.motorista) {
             const motoristaId = finishedDelivery.motorista.id;
