@@ -2968,9 +2968,22 @@ body {
   min-width: 20px; text-align: center; font-variant-numeric: tabular-nums;
 }
 .kanban-col-body {
-  display: flex; flex-direction: column; gap: 0.55rem;
-  overflow-y: auto; padding: 0.15rem 0.15rem 0.3rem; min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  overflow-y: auto;
+  /* CAP por coluna: a barra de rolagem aparece e o board NÃO cresce sem limite
+     (assim o mapa/monitoramento logo abaixo não é empurrado pra baixo). */
+  max-height: 26rem;
+  padding: 0.15rem 0.4rem 0.3rem 0.15rem;
+  min-height: 40px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
+.kanban-col-body::-webkit-scrollbar { width: 7px; }
+.kanban-col-body::-webkit-scrollbar-track { background: transparent; }
+.kanban-col-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 4px; }
+.kanban-col-body::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
 .kanban-empty { font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 1.1rem 0; }
 
 .kanban-dispatch-btn {
@@ -2982,7 +2995,8 @@ body {
 .kanban-dispatch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Card (a superfície/borda/glow vêm do .bento-item) */
-.kanban-card { padding: 0; }
+/* flex: 0 0 auto = não encolher: mantém a altura natural e força o overflow/scroll do corpo. */
+.kanban-card { padding: 0; flex: 0 0 auto; }
 .kanban-card-inner { padding: 0.6rem 0.65rem 0.5rem; cursor: pointer; }
 .kanban-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-bottom: 0.35rem; }
 .kanban-card-id { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
