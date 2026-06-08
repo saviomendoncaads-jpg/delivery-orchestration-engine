@@ -2931,3 +2931,121 @@ body {
   .bento-item, .bento-item::before, .bento-item::after { transition: none; }
   .bento-item:hover { transform: none; }
 }
+
+/* ===================== Kanban de Controle de Comandas ===================== */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-thin);
+  border-radius: 12px;
+  padding: 0.6rem 0.55rem;
+  max-height: 640px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0.3rem 0.6rem;
+}
+.kanban-col-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.kanban-col-title {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kanban-col-count {
+  margin-left: auto; font-size: 0.68rem; font-weight: 700; color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06); border-radius: 20px; padding: 0.05rem 0.45rem;
+  min-width: 20px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.kanban-col-body {
+  display: flex; flex-direction: column; gap: 0.55rem;
+  overflow-y: auto; padding: 0.15rem 0.15rem 0.3rem; min-height: 40px;
+}
+.kanban-empty { font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 1.1rem 0; }
+
+.kanban-dispatch-btn {
+  width: 100%; font-size: 0.68rem; font-weight: 700; padding: 0.45rem; border-radius: 7px;
+  border: 1px solid rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.12); color: var(--color-cyan);
+  cursor: pointer; margin-bottom: 0.55rem; transition: background 0.15s ease;
+}
+.kanban-dispatch-btn:hover:not(:disabled) { background: rgba(6, 182, 212, 0.22); }
+.kanban-dispatch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Card (a superfície/borda/glow vêm do .bento-item) */
+.kanban-card { padding: 0; }
+.kanban-card-inner { padding: 0.6rem 0.65rem 0.5rem; cursor: pointer; }
+.kanban-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-bottom: 0.35rem; }
+.kanban-card-id { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.kanban-card-id .card-id { font-size: 0.72rem; }
+.kanban-check { width: 14px; height: 14px; accent-color: var(--color-cyan); cursor: pointer; flex: none; }
+.kanban-card-timer { display: inline-flex; align-items: center; gap: 0.22rem; font-size: 0.62rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: none; }
+.kanban-card-body { display: flex; flex-direction: column; gap: 0.15rem; }
+.kanban-card-cliente { font-size: 0.76rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kanban-card-itens { font-size: 0.66rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kanban-card-meta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.kanban-card-valor { font-size: 0.7rem; font-weight: 700; color: var(--color-cyan); }
+.kanban-card-motoboy { font-size: 0.64rem; color: var(--text-secondary); }
+.kanban-card-alerta { font-size: 0.6rem; font-weight: 700; color: var(--color-rose); }
+.kanban-card-actions { display: flex; gap: 0.35rem; padding: 0 0.65rem 0.6rem; }
+
+.kanban-btn {
+  flex: 1; font-size: 0.67rem; font-weight: 700; padding: 0.4rem 0.5rem; border-radius: 6px;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+.kanban-btn:hover { filter: brightness(1.08); }
+.kanban-btn-amber { background: var(--color-amber); color: #000; }
+.kanban-btn-emerald { background: var(--color-emerald); color: #04150e; }
+.kanban-btn-emerald-soft { background: rgba(16, 185, 129, 0.12); color: var(--color-emerald); border-color: rgba(16, 185, 129, 0.3); }
+.kanban-btn-amber-soft { background: rgba(245, 158, 11, 0.1); color: var(--color-amber); border-color: rgba(245, 158, 11, 0.3); }
+.kanban-btn-ghost-rose { flex: none; width: 32px; background: transparent; color: var(--color-rose); border-color: rgba(244, 63, 94, 0.4); }
+.kanban-btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-thin); }
+.kanban-btn-cyan { background: var(--color-cyan); color: #04141a; }
+
+/* Abas (mobile) */
+.kanban-tabs { display: none; gap: 0.3rem; overflow-x: auto; margin-bottom: 0.6rem; padding-bottom: 0.3rem; }
+.kanban-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.66rem; font-weight: 700;
+  white-space: nowrap; padding: 0.35rem 0.6rem; border-radius: 20px; border: 1px solid var(--border-thin);
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+}
+.kanban-tab.active { border-color: rgba(6, 182, 212, 0.5); color: var(--text-primary); background: rgba(6, 182, 212, 0.08); }
+
+/* Modal de despacho */
+.kanban-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+}
+.kanban-modal {
+  width: 100%; max-width: 380px; background: var(--bg-card); border: 1px solid var(--border-thin);
+  border-radius: 14px; padding: 1.2rem; box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+}
+.kanban-modal-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.3rem; }
+.kanban-modal-sub { font-size: 0.74rem; color: var(--text-secondary); margin: 0 0 1rem; }
+.kanban-modal-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); display: block; margin-bottom: 0.3rem; }
+.kanban-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.1rem; }
+.kanban-modal-actions .kanban-btn { padding: 0.55rem; }
+
+/* Tablet: scroll horizontal com snap das colunas */
+@media (max-width: 1200px) and (min-width: 641px) {
+  .kanban-board { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; }
+  .kanban-column { flex: 0 0 300px; scroll-snap-align: start; max-height: none; }
+}
+
+/* Mobile: abas navegáveis (uma coluna por vez) */
+@media (max-width: 640px) {
+  .kanban-tabs { display: flex; }
+  .kanban-board { display: block; }
+  .kanban-column { max-height: none; }
+  .kanban-column[data-active="false"] { display: none; }
+}

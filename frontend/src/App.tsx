@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
 import CentroOperacoes, { type BrokerEvento } from './components/CentroOperacoes';
+import KanbanComandas from './components/KanbanComandas';
 import './App.css';
 
 declare const L: any;
@@ -2532,6 +2533,32 @@ export default function App() {
     }
   };
 
+  // Gera o romaneio (manifesto) das comandas selecionadas + entregador escolhido.
+  // Extraído do antigo botão "Gerar Romaneios" do header; acionado pelo Kanban (Coluna "Prontos").
+  const gerarRomaneioParaSelecionados = (driverId?: string) => {
+    if (selectedForManifest.length === 0) return;
+    const driver =
+      drivers.find(drv => drv.id === driverId) ||
+      drivers.find(drv => drv.id === selectedDriverForDispatch) ||
+      drivers.find(drv => drv.status === 'ocioso') ||
+      drivers[0];
+    const driverName = driver ? driver.name : 'Motoboy Terceirizado';
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const romId = `ROM-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+    const totalValue = selectedForManifest.reduce((acc, deliveryId) => {
+      const found = deliveries.find(del => del.id === deliveryId);
+      return acc + (found ? getDeliveryValue(found) : 0);
+    }, 0);
+    setActiveManifest({
+      id: romId,
+      deliveryIds: [...selectedForManifest],
+      driverName,
+      driverId: driver ? driver.id : '',
+      totalValue,
+    });
+    setSelectedForManifest([]);
+  };
+
   const handleManualDispatch = async () => {
     if (!selectedDriverForDispatch) {
       alert('Por favor, selecione um entregador.');
@@ -4797,33 +4824,7 @@ export default function App() {
                 </select>
               </div>
             )}
-            {selectedForManifest.length > 0 && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-small"
-                style={{ fontSize: '0.68rem', padding: '0.2rem 0.4rem', border: '1px solid #1f293d', background: '#141b27' }}
-                onClick={() => {
-                  const driver = drivers.find(drv => drv.id === selectedDriverForDispatch) || drivers.find(drv => drv.status === 'ocioso') || drivers[0];
-                  const driverName = driver ? driver.name : 'Motoboy Terceirizado';
-                  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                  const romId = `ROM-${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
-                  const totalValue = selectedForManifest.reduce((acc, deliveryId) => {
-                    const found = deliveries.find(del => del.id === deliveryId);
-                    return acc + (found ? getDeliveryValue(found) : 0);
-                  }, 0);
-                  setActiveManifest({
-                    id: romId,
-                    deliveryIds: [...selectedForManifest],
-                    driverName,
-                    driverId: driver ? driver.id : '',
-                    totalValue
-                  });
-                  setSelectedForManifest([]);
-                }}
-              >
-                Gerar Romaneios para Impressão e Liberar Entrega ({selectedForManifest.length})
-              </button>
-            )}
+            {/* Despacho em lote movido para o Kanban (Coluna "Prontos p/ Despacho") */}
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               Total: {deliveries.length} comandas
             </span>
@@ -4943,254 +4944,22 @@ export default function App() {
           </div>
         )}
 
-        {true ? (
-          <>
-            <div className="comandas-section-title font-mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-amber)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-amber)' }}></span>
-              Fila de Pedidos (WhatsApp / API)
-            </div>
-            <div className="deliveries-horizontal-list" style={{ marginBottom: '1.2rem', minHeight: '80px', borderBottom: '1px solid rgba(255,255,255,0.03)', paddingBottom: '1rem' }}>
-              {deliveries.filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE' && e.status !== 'CANCELADO').length === 0 ? (
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '1rem', width: '100%' }}>
-                  Nenhum pedido pendente na fila.
-                </div>
-              ) : (
-                [...deliveries]
-                  .filter(e => e.tipoComanda === 'pedido' && e.status !== 'ENTREGUE' && e.status !== 'CANCELADO')
-                  .sort((e, t) => {
-                    const n = e.criadoEm ? new Date(e.criadoEm).getTime() : 0;
-                    const r = t.criadoEm ? new Date(t.criadoEm).getTime() : 0;
-                    return r - n;
-                  })
-                  .map(e => (
-                    <div 
-                      key={e.id}
-                      className={`delivery-item-card order-card ${selectedDeliveryId === e.id ? 'selected' : ''}`}
-                      style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.75rem', minWidth: '280px', border: '1px solid rgba(245, 158, 11, 0.2)', background: 'rgba(245, 158, 11, 0.01)' }}
-                      onClick={() => setSelectedDeliveryId(e.id)}
-                    >
-                      <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span className="card-id font-mono" style={{ color: 'var(--color-amber)' }}>{e.id}</span>
-                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                          <span className="card-badge" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--color-amber)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                            PEDIDO
-                          </span>
-                          <span className="card-badge" style={{
-                            fontSize: '0.55rem',
-                            padding: '0.1rem 0.35rem',
-                            borderRadius: '4px',
-                            background: e.status === 'EM_PREPARO' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                            color: e.status === 'EM_PREPARO' ? 'var(--color-blue)' : 'var(--color-amber)',
-                            border: e.status === 'EM_PREPARO' ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid rgba(245, 158, 11, 0.2)',
-                            textTransform: 'uppercase'
-                          }}>
-                            {e.status === 'EM_PREPARO' ? 'Preparando' : 'Recebido'}
-                          </span>
-                          <button
-                            className="icon-btn"
-                            title="Imprimir / reimprimir comanda (80mm)"
-                            onClick={(ev) => { ev.stopPropagation(); imprimirComandaTicket(e, 'impressora'); }}
-                            style={{ padding: '0.15rem' }}
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="card-details" style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                        <div><strong>Cliente:</strong> {e.nomeCliente}</div>
-                        <div><strong>Itens:</strong> {e.itens && e.itens.length > 0 ? e.itens.join(', ') : 'Nenhum item'}</div>
-                        <div style={{ color: 'var(--color-amber)', fontWeight: 500, fontSize: '0.75rem', marginTop: '0.15rem' }}>
-                          Valor: R$ {getDeliveryValue(e).toFixed(2)}
-                        </div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.endereco}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.4rem' }}>
-                        {e.status === 'RECEBIDO' ? (
-                          <button
-                            className="btn btn-primary btn-small"
-                            style={{ flex: 1, fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-amber)', borderColor: 'var(--color-amber)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
-                            onClick={(t) => handlePrepararPedido(e.id, t)}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
-                              <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                            Aceitar e Preparar
-                          </button>
-                        ) : (
-                          <button
-                            className="btn btn-success btn-small"
-                            style={{ flex: 1, fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.5rem', background: 'var(--color-emerald)', borderColor: 'var(--color-emerald)', color: '#000', fontWeight: 600, borderRadius: '4px' }}
-                            onClick={(t) => handleFinalizarPedido(e.id, t)}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ marginRight: '2px' }}>
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            Finalizar e Enviar
-                          </button>
-                        )}
-                        <button
-                          className="btn btn-small"
-                          style={{ fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem', padding: '0.35rem 0.6rem', background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.4)', color: 'var(--color-rose)', fontWeight: 600, borderRadius: '4px' }}
-                          onClick={(t) => handleCancelarPedido(e.id, t)}
-                          title="Cancelar comanda"
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-
-            <div className="comandas-section-title font-mono" style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--color-cyan)' }}></span>
-              Fila de Entregas (Despacho / Rota)
-            </div>
-            <div className="deliveries-horizontal-list">
-              {deliveries.filter(e => e.tipoComanda !== 'pedido').length === 0 ? (
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '1rem', width: '100%' }}>
-                  Nenhuma entrega cadastrada.
-                </div>
-              ) : (
-                [...deliveries]
-                  .filter(e => e.tipoComanda !== 'pedido')
-                  .sort((a, b) => {
-                    const isCompA = a.status === 'ENTREGUE' || a.status === 'PRODUTO_RETORNADO_ESTOQUE' || a.status === 'RECUSADO_INSUCESSO';
-                    const isCompB = b.status === 'ENTREGUE' || b.status === 'PRODUTO_RETORNADO_ESTOQUE' || b.status === 'RECUSADO_INSUCESSO';
-
-                    if (isCompA && !isCompB) return 1;
-                    if (!isCompA && isCompB) return -1;
-
-                    const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
-                    const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
-                    return dateB - dateA;
-                  })
-                  .map(d => (
-                    <div 
-                      key={d.id} 
-                      className={`delivery-item-card ${selectedDeliveryId === d.id ? 'selected' : ''}`}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.8rem', minWidth: '280px' }}
-                      onClick={() => setSelectedDeliveryId(d.id)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedForManifest.includes(d.id)}
-                        onChange={t => {
-                          t.stopPropagation();
-                          if (t.target.checked) {
-                            setSelectedForManifest(prev => [...prev, d.id]);
-                          } else {
-                            setSelectedForManifest(prev => prev.filter(id => id !== d.id));
-                          }
-                        }}
-                        style={{ width: '13px', height: '13px', accentColor: 'var(--color-cyan)', border: '1px solid #1f293d', cursor: 'pointer', background: 'transparent' }}
-                      />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: 0 }}>
-                        <div className="card-title-row">
-                          <span className="card-id font-mono">{d.id}</span>
-                          <span className={`card-badge ${d.status}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
-                            {getStatusText(d.status)}
-                          </span>
-                        </div>
-                        <div className="card-details" style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                          <div><strong>Cliente:</strong> {d.nomeCliente}</div>
-                          <div><strong>Endereço:</strong> {d.endereco}</div>
-                          <div style={{ color: 'var(--color-cyan)', fontWeight: 500, fontSize: '0.7rem' }}>
-                            <strong>Valor da comanda:</strong> R$ {getDeliveryValue(d).toFixed(2)}
-                          </div>
-                          {d.motorista && (
-                            <div style={{ fontSize: '0.68rem', marginTop: '0.1rem', color: 'var(--text-secondary)' }}>
-                              <strong>Motoboy:</strong> <strong style={{ color: 'var(--text-primary)' }}>{d.motorista.name}</strong>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="deliveries-horizontal-list">
-            {deliveries.length === 0 ? (
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem', width: '100%' }}>
-                Nenhuma entrega cadastrada na simulação.
-              </div>
-            ) : (
-              [...deliveries]
-                .sort((a, b) => {
-                  const isCompA = a.status === 'ENTREGUE' || a.status === 'PRODUTO_RETORNADO_ESTOQUE' || a.status === 'RECUSADO_INSUCESSO';
-                  const isCompB = b.status === 'ENTREGUE' || b.status === 'PRODUTO_RETORNADO_ESTOQUE' || b.status === 'RECUSADO_INSUCESSO';
-
-                  if (isCompA && !isCompB) return 1;
-                  if (!isCompA && isCompB) return -1;
-
-                  const dateA = a.criadoEm ? new Date(a.criadoEm).getTime() : 0;
-                  const dateB = b.criadoEm ? new Date(b.criadoEm).getTime() : 0;
-                  return dateB - dateA;
-                })
-                .map(d => (
-                <div 
-                  key={d.id} 
-                  className={`delivery-item-card ${selectedDeliveryId === d.id ? 'selected' : ''}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.8rem' }}
-                  onClick={() => setSelectedDeliveryId(d.id)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedForManifest.includes(d.id)}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      if (e.target.checked) {
-                        setSelectedForManifest(prev => [...prev, d.id]);
-                      } else {
-                        setSelectedForManifest(prev => prev.filter(id => id !== d.id));
-                      }
-                    }}
-                    style={{
-                      width: '13px',
-                      height: '13px',
-                      accentColor: 'var(--color-cyan)',
-                      border: '1px solid #1f293d',
-                      cursor: 'pointer',
-                      background: 'transparent'
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div className="card-title-row" style={{ gap: '0.4rem' }}>
-                      <span className="card-id font-mono">{d.id}</span>
-                      <span className={`card-badge ${d.status}`} style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
-                        {getStatusText(d.status)}
-                      </span>
-                      {d.incidentes?.some(i => i.tipo === 'route_deviation' && i.descricao.includes('AlertaDesvioSequencia')) && (
-                        <span className="card-badge failed" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>
-                          PULADA
-                        </span>
-                      )}
-                    </div>
-                    <div className="card-details" style={{ marginTop: '0.2rem' }}>
-                      <div>Cliente: {d.nomeCliente}</div>
-                      <div>Prioridade: {getPriorityText(d.prioridade)} | {getCargoTypeText(d.tipoCarga)}</div>
-                      <div style={{ color: 'var(--color-cyan)', fontSize: '0.68rem', marginTop: '0.15rem' }}>Valor: R$ {getDeliveryValue(d).toFixed(2)}</div>
-                      {d.motorista && (
-                        <div style={{ fontSize: '0.68rem', marginTop: '0.1rem', color: 'var(--text-secondary)' }}>
-                          Motoboy: <strong style={{ color: 'var(--text-primary)' }}>{d.motorista.name}</strong>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+        {/* Kanban de Controle de Comandas — substitui as 2 filas verticais antigas */}
+        <KanbanComandas
+          deliveries={deliveries}
+          drivers={drivers}
+          selectedForManifest={selectedForManifest}
+          onToggleManifest={(id, checked) => setSelectedForManifest(prev => (checked ? [...prev, id] : prev.filter(x => x !== id)))}
+          onPreparar={handlePrepararPedido}
+          onFinalizar={handleFinalizarPedido}
+          onCancelar={handleCancelarPedido}
+          onAbrirComanda={setSelectedDeliveryId}
+          onDespachar={gerarRomaneioParaSelecionados}
+          onImprimir={(c) => imprimirComandaTicket(c as any, 'impressora')}
+          getValor={getDeliveryValue as any}
+          getStatusText={getStatusText}
+        />
+        {/* (as 2 filas verticais antigas foram substituídas pelo Kanban acima) */}
       </section>
 
       {/* 4. Dashboard Main Body Grid */}
