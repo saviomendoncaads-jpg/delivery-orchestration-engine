@@ -105,6 +105,11 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
     const ticketMedio = comandasDoDia.length ? faturamento / comandasDoDia.length : 0;
     const aguardando = deliveries.filter(d => STATUS_AGUARDANDO.includes(d.status)).length;
 
+    // Alertas que pedem ação AGORA: incidente em campo ou entrega em risco de SLA.
+    const alertasAtivos = deliveries.filter(d => d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA').length;
+    // Volume do dia: comandas que entraram hoje (independente do status atual).
+    const recebidosHoje = deliveries.filter(d => isHoje(d.criadoEm)).length;
+
     return {
       emRota: ativas.length,
       despachando,
@@ -116,6 +121,8 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
       faturamento,
       ticketMedio,
       aguardando,
+      alertasAtivos,
+      recebidosHoje,
     };
   }, [deliveries, drivers, liveEvents]);
 
@@ -160,6 +167,16 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
             <div className="label">T. médio</div>
             <div className="value">{m.tempoMedio}<span style={{ fontSize: '0.9rem', fontWeight: 600 }}>m</span></div>
             <div className="sub">por entrega</div>
+          </BentoItem>
+          <BentoItem className="centro-ops-kpi">
+            <div className="label">Alertas ativos</div>
+            <div className="value" style={{ color: m.alertasAtivos > 0 ? 'var(--color-rose)' : 'var(--color-emerald)' }}>{m.alertasAtivos}</div>
+            <div className="sub">{m.alertasAtivos > 0 ? 'incidente · risco SLA' : 'tudo sob controle'}</div>
+          </BentoItem>
+          <BentoItem className="centro-ops-kpi">
+            <div className="label">Recebidos</div>
+            <div className="value">{m.recebidosHoje}</div>
+            <div className="sub">pedidos hoje</div>
           </BentoItem>
         </div>
 
