@@ -2591,7 +2591,7 @@ export default function App() {
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao finalizar comanda');
       }
-      alert(data.message || 'Pedido finalizado e enviado para entrega!');
+      // Sem pop-up de sucesso: a comanda já avança/some no Kanban via socket — operação flui.
     } catch (err: any) {
       alert(err.message);
     }
