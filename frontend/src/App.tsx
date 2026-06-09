@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
 import CentroOperacoes, { type BrokerEvento } from './components/CentroOperacoes';
 import KanbanComandas from './components/KanbanComandas';
+import WazeRouteMonitor from './components/WazeRouteMonitor';
 import './App.css';
 
 declare const L: any;
@@ -5208,93 +5209,64 @@ export default function App() {
         {/* Center: Live GPS Map & Mobile Simulator / Telemetry split */}
         <section className="glass-panel" style={{ minWidth: '0' }}>
           <div className="panel-header">
-            <h2>Telemetria e Monitoramento de Rotas (GPS)</h2>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Grade de Coordenadas 100x100</span>
+            <h2 style={{ fontFamily: "'Nunito', 'Baloo 2', sans-serif", fontWeight: 800, letterSpacing: '0.2px' }}>Telemetria e Monitoramento de Rotas (GPS)</h2>
+            <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Grade de Coordenadas 100x100</span>
           </div>
 
           <div className="map-container" style={{ position: 'relative', overflow: 'hidden' }}>
-            <div ref={mapContainerRef} style={{ width: '100%', height: '100%', background: '#090d16' }}></div>
-            {/* Overlay com status da geolocalização da loja + botão de re-geocodificação */}
-            {sessao?.tipo === 'loja' && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '10px',
-                  left: '10px',
-                  zIndex: 1000,
-                  background: 'rgba(9, 13, 22, 0.85)',
-                  border: '1px solid rgba(0, 242, 254, 0.25)',
-                  borderRadius: '6px',
-                  padding: '6px 10px',
-                  fontSize: '0.7rem',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  maxWidth: '320px'
-                }}
-              >
-                {typeof lojaLat === 'number' && typeof lojaLng === 'number' ? (
-                  <span>
-                    📍 Loja: <span className="font-mono" style={{ color: 'var(--color-cyan)' }}>{lojaLat.toFixed(5)}, {lojaLng.toFixed(5)}</span>
-                  </span>
-                ) : (
-                  <span style={{ color: 'var(--color-amber)' }}>⚠️ Localização não resolvida — sem CEP/endereço.</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!navigator.geolocation) {
-                      alert('Este navegador não suporta geolocalização.');
-                      return;
+            {/* Waze Live Map oficial (embed.waze.com/iframe) — substitui o mapa Leaflet.
+                Os efeitos do Leaflet têm guarda (if (!map) return), então a ausência
+                do container apenas faz o init dar early-return, sem efeitos colaterais. */}
+            <WazeRouteMonitor
+              storeLabel="BRASIL FARMA - LOJA 10"
+              lojaLat={typeof lojaLat === 'number' ? lojaLat : undefined}
+              lojaLng={typeof lojaLng === 'number' ? lojaLng : undefined}
+              isStoreSession={sessao?.tipo === 'loja'}
+              onUseMyLocation={() => {
+                if (!navigator.geolocation) {
+                  alert('Este navegador não suporta geolocalização.');
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  async (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    try {
+                      const resp = await apiFetch(`${BACKEND_URL}/api/loja-atual/coordenadas`, {
+                        method: 'POST',
+                        body: JSON.stringify({ latitude, longitude })
+                      });
+                      const contentType = resp.headers.get('content-type') || '';
+                      if (!contentType.includes('application/json')) {
+                        alert(
+                          `Backend respondeu HTTP ${resp.status} sem JSON. ` +
+                          `Reinicie o backend (npm run dev) — rota nova ainda não existe.`
+                        );
+                        return;
+                      }
+                      const data = await resp.json();
+                      if (!resp.ok) {
+                        alert(data.error || 'Erro ao salvar localização.');
+                        return;
+                      }
+                      setLojaCoordsLive({ lat: latitude, lng: longitude });
+                    } catch (err: any) {
+                      alert('Erro ao salvar localização: ' + err.message);
                     }
-                    navigator.geolocation.getCurrentPosition(
-                      async (pos) => {
-                        const { latitude, longitude } = pos.coords;
-                        try {
-                          const resp = await apiFetch(`${BACKEND_URL}/api/loja-atual/coordenadas`, {
-                            method: 'POST',
-                            body: JSON.stringify({ latitude, longitude })
-                          });
-                          const contentType = resp.headers.get('content-type') || '';
-                          if (!contentType.includes('application/json')) {
-                            alert(
-                              `Backend respondeu HTTP ${resp.status} sem JSON. ` +
-                              `Reinicie o backend (npm run dev) — rota nova ainda não existe.`
-                            );
-                            return;
-                          }
-                          const data = await resp.json();
-                          if (!resp.ok) {
-                            alert(data.error || 'Erro ao salvar localização.');
-                            return;
-                          }
-                          setLojaCoordsLive({ lat: latitude, lng: longitude });
-                        } catch (err: any) {
-                          alert('Erro ao salvar localização: ' + err.message);
-                        }
-                      },
-                      (err) => {
-                        const msg = err.code === err.PERMISSION_DENIED
-                          ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
-                          : err.code === err.POSITION_UNAVAILABLE
-                            ? 'Localização indisponível no momento.'
-                            : err.code === err.TIMEOUT
-                              ? 'Tempo esgotado ao obter localização.'
-                              : 'Erro de geolocalização: ' + err.message;
-                        alert(msg);
-                      },
-                      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-                    );
-                  }}
-                  className="btn"
-                  style={{ padding: '2px 8px', fontSize: '0.65rem', borderRadius: '4px', background: 'var(--color-cyan)', color: '#000', fontWeight: 600 }}
-                  title="Usa o GPS deste dispositivo para fixar a loja na localização atual"
-                >
-                  📍 Usar minha localização
-                </button>
-              </div>
-            )}
+                  },
+                  (err) => {
+                    const msg = err.code === err.PERMISSION_DENIED
+                      ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
+                      : err.code === err.POSITION_UNAVAILABLE
+                        ? 'Localização indisponível no momento.'
+                        : err.code === err.TIMEOUT
+                          ? 'Tempo esgotado ao obter localização.'
+                          : 'Erro de geolocalização: ' + err.message;
+                    alert(msg);
+                  },
+                  { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+              }}
+            />
           </div>
 
           <div className="split-telemetry-container">
