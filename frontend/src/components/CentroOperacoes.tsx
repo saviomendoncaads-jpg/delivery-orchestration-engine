@@ -50,6 +50,8 @@ const STATUS_ATIVOS = ['DESPACHADO', 'EM_TRANSITO', 'NO_LOCAL', 'ALERTA_INCIDENT
 const STATUS_FINALIZADOS = ['ENTREGUE', 'RECUSADO_INSUCESSO', 'CANCELADO', 'PRODUTO_RETORNADO_ESTOQUE'];
 // Comandas que ainda não saíram para entrega (fila de despacho).
 const STATUS_AGUARDANDO = ['RECEBIDO', 'EM_PREPARO'];
+// Logística reversa: entregas que voltaram (insucesso/recusa ou retorno ao CD/estoque).
+const STATUS_DEVOLVIDAS = ['RECUSADO_INSUCESSO', 'AGUARDANDO_RETORNO_CD', 'PRODUTO_RETORNADO_ESTOQUE'];
 const META_SLA = 95; // meta de SLA no prazo (%)
 
 function isHoje(iso?: string): boolean {
@@ -105,8 +107,8 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
     const ticketMedio = comandasDoDia.length ? faturamento / comandasDoDia.length : 0;
     const aguardando = deliveries.filter(d => STATUS_AGUARDANDO.includes(d.status)).length;
 
-    // Alertas que pedem ação AGORA: incidente em campo ou entrega em risco de SLA.
-    const alertasAtivos = deliveries.filter(d => d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA').length;
+    // Devolvidas hoje: entregas que voltaram (insucesso/recusa ou retorno ao CD/estoque).
+    const devolvidas = deliveries.filter(d => STATUS_DEVOLVIDAS.includes(d.status) && isHoje(d.dataHoraConclusao || d.atualizadoEm || d.criadoEm)).length;
     // Volume do dia: comandas que entraram hoje (independente do status atual).
     const recebidosHoje = deliveries.filter(d => isHoje(d.criadoEm)).length;
 
@@ -121,7 +123,7 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
       faturamento,
       ticketMedio,
       aguardando,
-      alertasAtivos,
+      devolvidas,
       recebidosHoje,
     };
   }, [deliveries, drivers, liveEvents]);
@@ -169,9 +171,9 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
             <div className="sub">por entrega</div>
           </BentoItem>
           <BentoItem className="centro-ops-kpi">
-            <div className="label">Alertas ativos</div>
-            <div className="value" style={{ color: m.alertasAtivos > 0 ? 'var(--color-rose)' : 'var(--color-emerald)' }}>{m.alertasAtivos}</div>
-            <div className="sub">{m.alertasAtivos > 0 ? 'incidente · risco SLA' : 'tudo sob controle'}</div>
+            <div className="label">Devolvidas</div>
+            <div className="value" style={{ color: m.devolvidas > 0 ? 'var(--color-amber)' : 'var(--color-emerald)' }}>{m.devolvidas}</div>
+            <div className="sub">{m.devolvidas > 0 ? 'insucesso · retorno' : 'nenhuma hoje'}</div>
           </BentoItem>
           <BentoItem className="centro-ops-kpi">
             <div className="label">Recebidos</div>
