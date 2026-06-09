@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
 import CentroOperacoes, { type BrokerEvento } from './components/CentroOperacoes';
 import KanbanComandas from './components/KanbanComandas';
-import WazeRouteMonitor from './components/WazeRouteMonitor';
 import './App.css';
 
 declare const L: any;
@@ -40,6 +39,17 @@ function latLngToGrid(lat: number, lng: number): { x: number; y: number } {
 
 // Cache global de rotas OSRM para evitar requisições redundantes e rate limits
 const osrmRoutesCache = new Map<string, [number, number][]>();
+
+// Marcador da loja (hub) no mapa — estilo Waze: badge branco com ícone de loja
+// e o NOME da loja exibido logo acima do indicador (via CSS ::after / --hub-name).
+function hubIconHtml(name: string): string {
+  return `<div class="map-city-hub" style="--hub-name: '${name}'; position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;">`
+    + `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">`
+    + `<path d="M3 9 L4.4 4.5 H19.6 L21 9" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<path d="M4.5 9 V19.5 H19.5 V9" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>`
+    + `<path d="M9.5 19.5 V14 H14.5 V19.5" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/>`
+    + `</svg></div>`;
+}
 
 function getVehicleIconHtmlString(type?: string): string {
   switch (type) {
@@ -2110,9 +2120,9 @@ export default function App() {
     // Botões de zoom no canto superior direito para não poluir
     L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // Adiciona o Tile Layer do CartoDB Dark Matter
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
+    // Tile Layer claro estilo Waze (CartoDB Voyager) — vias e POIs em tema claro.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20
     }).addTo(map);
 
     leafletMapRef.current = map;
@@ -2120,7 +2130,7 @@ export default function App() {
     // Marcador do Hub (Loja) com divIcon customizado
     const hubIcon = L.divIcon({
       className: 'hub-icon-wrapper',
-      html: `<div class="map-city-hub" style="--hub-name: '${hubName}'; position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;"></div>`,
+      html: hubIconHtml(hubName),
       iconSize: [0, 0],
       iconAnchor: [0, 0]
     });
@@ -2149,7 +2159,7 @@ export default function App() {
     if (hubMarkerRef.current) {
       const hubIcon = L.divIcon({
         className: 'hub-icon-wrapper',
-        html: `<div class="map-city-hub" style="--hub-name: '${hubName}'; position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;"></div>`,
+        html: hubIconHtml(hubName),
         iconSize: [0, 0],
         iconAnchor: [0, 0]
       });
@@ -2179,9 +2189,10 @@ export default function App() {
       const key = d.id;
       currentDestKeys.add(key);
 
+      const isSelectedDest = d.id === selectedDeliveryId;
       const destIcon = L.divIcon({
         className: 'dest-icon-wrapper',
-        html: `<div class="map-destination ${hasArrived ? 'arrived' : ''} ${isSkipped ? 'skipped' : ''}" style="position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;" title="Destino da Entrega ${d.id}"></div>`,
+        html: `<div class="map-destination ${hasArrived ? 'arrived' : ''} ${isSkipped ? 'skipped' : ''} ${isSelectedDest ? 'selected' : ''}" style="position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;" title="Destino da Entrega ${d.id}"><div class="dest-label">${d.id}</div></div>`,
         iconSize: [0, 0],
         iconAnchor: [0, 0]
       });
@@ -2192,6 +2203,7 @@ export default function App() {
         marker.setIcon(destIcon);
       } else {
         const marker = L.marker(endLatLng, { icon: destIcon }).addTo(map);
+        marker.on('click', () => setSelectedDeliveryId(d.id));
         destinationMarkersRef.current.set(key, marker);
       }
     });
@@ -2222,25 +2234,28 @@ export default function App() {
       const isSelected = d.id === selectedDeliveryId;
       const hasIncident = d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA';
 
-      const color = isSelected 
-        ? '#00f2fe' 
+      // Estilo Waze em tiles claros: rota selecionada em azul vivo, grossa e sólida;
+      // as demais finas, mais claras e tracejadas. Incidente em vermelho.
+      const color = isSelected
+        ? '#1a73e8'
         : hasIncident
-        ? '#f43f5e' 
-        : '#3b82f6';
-      const opacity = isSelected ? 0.9 : 0.45;
-      const weight = isSelected ? 4 : 2.5;
+        ? '#f43f5e'
+        : '#5b8def';
+      const opacity = isSelected ? 0.95 : 0.5;
+      const weight = isSelected ? 6 : 3;
+      const dashArray = isSelected ? null : '6, 8';
 
       const drawPolyline = (latlngs: [number, number][]) => {
         if (routeLinesRef.current.has(key)) {
           const polyline = routeLinesRef.current.get(key);
           polyline.setLatLngs(latlngs);
-          polyline.setStyle({ color, opacity, weight });
+          polyline.setStyle({ color, opacity, weight, dashArray });
         } else {
           const polyline = L.polyline(latlngs, {
             color,
             opacity,
             weight,
-            dashArray: '5, 5',
+            dashArray,
             lineCap: 'round',
             lineJoin: 'round'
           }).addTo(map);
@@ -2398,6 +2413,37 @@ export default function App() {
     });
 
   }, [deliveries, drivers, selectedDeliveryId, driverMobileVinculado, hubName, mapRoutesTrigger]);
+
+  // Foco automático: ao clicar/selecionar uma comanda, enquadra o mapa na entrega
+  // daquele motoboy (loja → posição do motoboy → destino), revelando o trajeto e o
+  // destino. Reage só à MUDANÇA de seleção (não a cada tick), para o mapa não "pular".
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map || !selectedDeliveryId) return;
+    const d = deliveries.find(x => x.id === selectedDeliveryId);
+    if (!d) return;
+
+    const pts: [number, number][] = [hubLatLng];
+    if (typeof d.destinoLatitude === 'number' && typeof d.destinoLongitude === 'number') {
+      pts.push([d.destinoLatitude, d.destinoLongitude]);
+    } else if (d.rota?.path?.length) {
+      const n = d.rota.path[d.rota.path.length - 1];
+      pts.push(gridToLatLng(n.x, n.y));
+    }
+    const drv = drivers.find(v => v.id === d.motorista?.id && v.localizacaoAtual);
+    if (drv?.localizacaoAtual) {
+      pts.push(gridToLatLng(drv.localizacaoAtual.x, drv.localizacaoAtual.y));
+    } else if (d.telemetria?.localizacaoAtual) {
+      pts.push(gridToLatLng(d.telemetria.localizacaoAtual.x, d.telemetria.localizacaoAtual.y));
+    }
+
+    if (pts.length >= 2) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [70, 70], maxZoom: 16, animate: true });
+    } else {
+      map.setView(pts[0], 15, { animate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDeliveryId]);
 
   const handleCreateDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -5213,60 +5259,79 @@ export default function App() {
             <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Grade de Coordenadas 100x100</span>
           </div>
 
-          <div className="map-container" style={{ position: 'relative', overflow: 'hidden' }}>
-            {/* Waze Live Map oficial (embed.waze.com/iframe) — substitui o mapa Leaflet.
-                Os efeitos do Leaflet têm guarda (if (!map) return), então a ausência
-                do container apenas faz o init dar early-return, sem efeitos colaterais. */}
-            <WazeRouteMonitor
-              storeLabel="BRASIL FARMA - LOJA 10"
-              lojaLat={typeof lojaLat === 'number' ? lojaLat : undefined}
-              lojaLng={typeof lojaLng === 'number' ? lojaLng : undefined}
-              isStoreSession={sessao?.tipo === 'loja'}
-              onUseMyLocation={() => {
-                if (!navigator.geolocation) {
-                  alert('Este navegador não suporta geolocalização.');
-                  return;
-                }
-                navigator.geolocation.getCurrentPosition(
-                  async (pos) => {
-                    const { latitude, longitude } = pos.coords;
-                    try {
-                      const resp = await apiFetch(`${BACKEND_URL}/api/loja-atual/coordenadas`, {
-                        method: 'POST',
-                        body: JSON.stringify({ latitude, longitude })
-                      });
-                      const contentType = resp.headers.get('content-type') || '';
-                      if (!contentType.includes('application/json')) {
-                        alert(
-                          `Backend respondeu HTTP ${resp.status} sem JSON. ` +
-                          `Reinicie o backend (npm run dev) — rota nova ainda não existe.`
-                        );
-                        return;
-                      }
-                      const data = await resp.json();
-                      if (!resp.ok) {
-                        alert(data.error || 'Erro ao salvar localização.');
-                        return;
-                      }
-                      setLojaCoordsLive({ lat: latitude, lng: longitude });
-                    } catch (err: any) {
-                      alert('Erro ao salvar localização: ' + err.message);
+          <div className="map-container map-waze" style={{ position: 'relative', overflow: 'hidden' }}>
+            {/* Mapa interativo (Leaflet, tiles claros estilo Waze): loja, rota do motoboy
+                (OSRM) e destinos. Ao clicar na comanda, o mapa dá foco na entrega. */}
+            <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
+
+            {/* Overlay de geolocalização da loja (canto inferior esquerdo) */}
+            {sessao?.tipo === 'loja' && (
+              <div className="map-loc-overlay">
+                {typeof lojaLat === 'number' && typeof lojaLng === 'number' ? (
+                  <span className="map-loc-coords">
+                    <span className="map-loc-dot" />
+                    {lojaLat.toFixed(5)}, {lojaLng.toFixed(5)}
+                  </span>
+                ) : (
+                  <span className="map-loc-warn">⚠️ Localização não resolvida — sem CEP/endereço.</span>
+                )}
+                <button
+                  type="button"
+                  className="map-loc-btn"
+                  title="Usa o GPS deste dispositivo para fixar a loja na localização atual"
+                  onClick={() => {
+                    if (!navigator.geolocation) {
+                      alert('Este navegador não suporta geolocalização.');
+                      return;
                     }
-                  },
-                  (err) => {
-                    const msg = err.code === err.PERMISSION_DENIED
-                      ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
-                      : err.code === err.POSITION_UNAVAILABLE
-                        ? 'Localização indisponível no momento.'
-                        : err.code === err.TIMEOUT
-                          ? 'Tempo esgotado ao obter localização.'
-                          : 'Erro de geolocalização: ' + err.message;
-                    alert(msg);
-                  },
-                  { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-                );
-              }}
-            />
+                    navigator.geolocation.getCurrentPosition(
+                      async (pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        try {
+                          const resp = await apiFetch(`${BACKEND_URL}/api/loja-atual/coordenadas`, {
+                            method: 'POST',
+                            body: JSON.stringify({ latitude, longitude })
+                          });
+                          const contentType = resp.headers.get('content-type') || '';
+                          if (!contentType.includes('application/json')) {
+                            alert(
+                              `Backend respondeu HTTP ${resp.status} sem JSON. ` +
+                              `Reinicie o backend (npm run dev) — rota nova ainda não existe.`
+                            );
+                            return;
+                          }
+                          const data = await resp.json();
+                          if (!resp.ok) {
+                            alert(data.error || 'Erro ao salvar localização.');
+                            return;
+                          }
+                          setLojaCoordsLive({ lat: latitude, lng: longitude });
+                        } catch (err: any) {
+                          alert('Erro ao salvar localização: ' + err.message);
+                        }
+                      },
+                      (err) => {
+                        const msg = err.code === err.PERMISSION_DENIED
+                          ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
+                          : err.code === err.POSITION_UNAVAILABLE
+                            ? 'Localização indisponível no momento.'
+                            : err.code === err.TIMEOUT
+                              ? 'Tempo esgotado ao obter localização.'
+                              : 'Erro de geolocalização: ' + err.message;
+                        alert(msg);
+                      },
+                      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                    );
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                    <circle cx="12" cy="8.2" r="4" fill="currentColor" />
+                    <path d="M4.5 20 a7.5 7.5 0 0 1 15 0 Z" fill="currentColor" />
+                  </svg>
+                  Usar minha localização
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="split-telemetry-container">

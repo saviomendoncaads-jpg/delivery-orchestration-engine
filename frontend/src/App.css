@@ -554,47 +554,94 @@ body {
   pointer-events: none;
 }
 
+/* Marcador da LOJA (hub) — badge branco com ícone de loja e NOME logo acima */
 .map-city-hub {
   position: absolute;
-  left: 10%;
-  top: 10%;
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border: 3px solid #2563eb;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
+}
+
+.map-city-hub svg { display: block; }
+
+.map-city-hub::after {
+  content: var(--hub-name, 'Loja');
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Nunito', var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  color: #15233b;
+  background: #ffffff;
+  padding: 0.16rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.25);
+}
+
+.map-city-hub::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #ffffff;
+}
+
+/* Marcador de DESTINO — bolinha com anel branco; realça quando a comanda é selecionada */
+.map-destination {
+  position: absolute;
   width: 16px;
   height: 16px;
-  background: var(--color-cyan);
+  background: #7c3aed;
   border: 3px solid #fff;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10;
-  box-shadow: var(--shadow-neon);
+  z-index: 14;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.45);
 }
 
-.map-city-hub::after {
-  content: var(--hub-name, 'CD Central');
+.map-destination.arrived { background: #16a34a; }
+
+.map-destination.selected {
+  width: 22px;
+  height: 22px;
+  background: #1a73e8;
+  z-index: 16;
+  box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.25), 0 3px 8px rgba(15, 23, 42, 0.5);
+}
+
+.dest-label {
   position: absolute;
-  top: 18px;
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.65rem;
-  font-weight: 700;
+  display: none;
+  font-family: 'Nunito', var(--font-sans);
+  font-size: 0.62rem;
+  font-weight: 800;
   white-space: nowrap;
-  background: rgba(0,0,0,0.8);
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-  border: 1px solid rgba(0,242,254,0.3);
-  color: var(--color-cyan);
+  color: #fff;
+  background: #1a73e8;
+  padding: 0.08rem 0.34rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
 }
 
-.map-destination {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  background: var(--color-purple);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  box-shadow: 0 0 10px var(--color-purple);
-}
+.map-destination.selected .dest-label { display: block; }
 
 /* Vehicles moving on map */
 .map-vehicle {
@@ -602,8 +649,9 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #111827;
-  border: 2px solid var(--color-cyan);
+  background: #1f2937;
+  color: #fff;
+  border: 3px solid #1a73e8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -612,7 +660,7 @@ body {
   cursor: pointer;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   font-size: 1.1rem;
-  box-shadow: var(--shadow-neon);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.45);
 }
 
 .map-vehicle.selected {
@@ -3063,3 +3111,110 @@ body {
   .kanban-column { max-height: none; }
   .kanban-column[data-active="false"] { display: none; }
 }
+
+/* ============================================================
+   Mapa Leaflet — tema CLARO estilo Waze (.map-waze)
+   ============================================================ */
+.map-container.map-waze {
+  background: #e7edf2;
+  box-shadow: none;
+}
+
+/* Etiqueta de veículo legível sobre tiles claros */
+.map-waze .vehicle-label {
+  font-family: 'Nunito', var(--font-sans);
+  font-weight: 800;
+  color: #fff;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+/* Botões de zoom do Leaflet → flutuantes/arredondados estilo Waze (canto sup. direito) */
+.map-waze .leaflet-control-zoom {
+  border: none !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4) !important;
+  margin: 12px 12px 0 0 !important;
+}
+.map-waze .leaflet-control-zoom a {
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+.map-waze .leaflet-control-zoom a:last-child { border-bottom: none; }
+.map-waze .leaflet-control-zoom a:hover { background: #fff; color: #1a73e8; }
+
+/* Atribuição discreta (caso reative) */
+.map-waze .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+}
+
+/* Overlay de geolocalização da loja (inferior esquerdo) */
+.map-loc-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  padding: 7px 10px 7px 12px;
+  box-shadow: 0 8px 22px -8px rgba(15, 23, 42, 0.45);
+  font-family: 'Nunito', var(--font-sans);
+}
+.map-loc-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1f3b57;
+}
+.map-loc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
+}
+.map-loc-warn {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #c2410c;
+}
+.map-loc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #042b33;
+  background: linear-gradient(180deg, #25d8ec, #14b8d4);
+  box-shadow: 0 6px 14px -5px rgba(20, 184, 212, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.map-loc-btn:hover {
+  box-shadow: 0 8px 18px -5px rgba(20, 184, 212, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.map-loc-btn:active { transform: translateY(1px) scale(0.99); }
