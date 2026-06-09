@@ -148,31 +148,29 @@
   @media (min-width:560px){ .cmd-body { grid-template-columns:1.55fr 1fr; } }
   .cmd-main { padding:14px; min-width:0; border-bottom:1px solid var(--line); }
   @media (min-width:560px){ .cmd-main { border-bottom:none; border-right:1px solid var(--line); } }
-  .cmd-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
-  @media (min-width:420px){ .cmd-kpis { grid-template-columns:repeat(4,1fr); } }
+  .cmd-main { display:flex; }
+  .cmd-kpis { flex:1; display:grid; grid-template-columns:repeat(2,1fr); grid-auto-rows:1fr; gap:8px; }
   .kpi { border:1px solid var(--line); border-radius:11px; padding:10px 11px; background:var(--surface); }
   .kpi .kl { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate-3); }
   .kpi .kv { font-size:19px; font-weight:700; color:var(--white); margin-top:3px; font-family:var(--mono); letter-spacing:-.02em; }
   .kpi .kt { font-size:9.5px; margin-top:2px; color:var(--slate-3); }
   .kpi .kt.up { color:var(--ok); }
-  .cmd-map { position:relative; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#06080f; aspect-ratio:16/10; }
-  .cmd-map .mtag { position:absolute; top:9px; left:9px; z-index:2; font-size:10px; font-family:var(--mono); color:var(--slate-3); background:rgba(3,7,18,.72); border:1px solid var(--line); padding:3px 8px; border-radius:6px; }
-  .cmd-map svg { width:100%; height:100%; }
+  .kpi .kv.ok { color:var(--ok); }
+  .kpi .kv.warn { color:var(--warn); }
   .cmd-aside { padding:14px; display:flex; flex-direction:column; gap:12px; min-width:0; }
   .gauge { border:1px solid var(--line); border-radius:12px; padding:13px; background:var(--surface); display:flex; align-items:center; gap:13px; }
   .gauge svg { width:62px; height:62px; flex:0 0 auto; }
   .gauge .gl { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate-3); }
   .gauge .gv { font-size:22px; font-weight:800; color:var(--white); font-family:var(--mono); letter-spacing:-.03em; }
   .gauge .gd { font-size:10.5px; color:var(--slate-3); margin-top:1px; }
-  .feed { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:11px; flex:1; }
-  .feed .fh { display:flex; justify-content:space-between; align-items:center; font-size:10.5px; color:var(--slate-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:9px; }
-  .feed .frow { display:flex; gap:9px; align-items:flex-start; padding:7px 0; border-top:1px solid var(--line); }
-  .feed .frow:first-of-type { border-top:none; }
-  .feed .fdot { width:7px; height:7px; border-radius:50%; margin-top:5px; flex:0 0 auto; background:var(--slate-3); }
-  .feed .fdot.blue { background:var(--primary-2); } .feed .fdot.ok { background:var(--ok); } .feed .fdot.warn { background:var(--warn); }
-  .feed .ft { font-size:11.5px; color:var(--slate-1); line-height:1.35; }
-  .feed .ft b { color:var(--white); font-weight:600; }
-  .feed .fm { font-size:10px; color:var(--slate-3); font-family:var(--mono); margin-top:1px; }
+  .resumo { border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:11px 13px; flex:1; }
+  .resumo .rh { font-size:10.5px; color:var(--slate-3); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .resumo .rrow { display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:7px 0; border-top:1px solid var(--line); }
+  .resumo .rrow:first-of-type { border-top:none; }
+  .resumo .rl { font-size:11.5px; color:var(--slate-1); }
+  .resumo .rv { font-size:14px; font-weight:700; color:var(--white); font-family:var(--mono); letter-spacing:-.02em; white-space:nowrap; }
+  .resumo .rv.ok { color:var(--ok); }
+  .resumo .rv small { font-size:10px; font-weight:500; color:var(--slate-3); font-family:var(--mono); }
   .chip { font-size:9px; font-weight:700; padding:3px 7px; border-radius:999px; white-space:nowrap; letter-spacing:.03em; }
   .chip.rota { color:var(--primary-2); background:rgba(37,99,235,.14); }
   .chip.transito { color:var(--warn); background:rgba(251,191,36,.12); }
@@ -497,7 +495,7 @@
         <div class="hero-meta"><span><b>Pix, Boleto ou Cartão</b></span><span class="sep"></span><span>Sem instalação</span><span class="sep"></span><span>Comece a despachar hoje</span></div>
       </div>
       <div class="reveal in" data-d="2">
-        <div class="cmd" role="img" aria-label="Centro de operações DISTRE: mapa ao vivo, indicadores, SLA e feed de eventos">
+        <div class="cmd" role="img" aria-label="Centro de operações DISTRE: indicadores ao vivo, SLA no prazo e resumo financeiro do dia">
           <div class="cmd-top">
             <span class="ct-brand">CENTRO DE OPERAÇÕES</span>
             <span class="ct-region">SP · ZONA OESTE</span><span class="ct-spacer"></span>
@@ -507,42 +505,24 @@
             <main class="cmd-main">
               <div class="cmd-kpis">
                 <div class="kpi"><div class="kl">Em rota</div><div class="kv" data-count="12">0</div><div class="kt">3 despachando</div></div>
-                <div class="kpi"><div class="kl">SLA prazo</div><div class="kv" data-count="98" data-suffix="%">0</div><div class="kt up">+4,2pp</div></div>
-                <div class="kpi"><div class="kl">Entregues</div><div class="kv" data-count="47">0</div><div class="kt up">hoje</div></div>
+                <div class="kpi"><div class="kl">SLA prazo</div><div class="kv ok" data-count="98" data-suffix="%">0</div><div class="kt">acima da meta</div></div>
+                <div class="kpi"><div class="kl">Entregues</div><div class="kv" data-count="47">0</div><div class="kt">hoje</div></div>
                 <div class="kpi"><div class="kl">T. médio</div><div class="kv" data-count="23" data-suffix="m">0</div><div class="kt">por entrega</div></div>
-              </div>
-              <div class="cmd-map">
-                <span class="mtag">FROTA ATIVA · 12 VEÍCULOS</span>
-                <svg viewBox="0 0 360 230" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                  <defs><pattern id="grid2" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M0 0H36M0 0V36" stroke="#0c1322" stroke-width="1"/></pattern><radialGradient id="hubg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#2563EB" stop-opacity=".5"/><stop offset="100%" stop-color="#2563EB" stop-opacity="0"/></radialGradient></defs>
-                  <rect width="360" height="230" fill="url(#grid2)"/>
-                  <path d="M0 64H360M0 150H360M96 0V230M236 0V230" stroke="#11192b" stroke-width="2"/>
-                  <rect x="34" y="84" width="44" height="44" fill="#0a1120" rx="2"/><rect x="140" y="34" width="64" height="32" fill="#0a1120" rx="2"/><rect x="258" y="158" width="56" height="44" fill="#0a1120" rx="2"/>
-                  <circle cx="66" cy="178" r="30" fill="url(#hubg)"/>
-                  <path d="M66 178 C 118 150, 128 88, 182 80 S 268 112, 296 56" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="5 7"/>
-                  <path d="M66 178 C 118 150, 128 88, 182 80 S 268 112, 296 56" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-opacity=".15"/>
-                  <path d="M66 178 C 96 196, 170 200, 210 168 S 286 150, 318 182" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-opacity=".45" stroke-dasharray="4 7"/>
-                  <path d="M66 178 C 80 120, 60 86, 110 50" fill="none" stroke="#60A5FA" stroke-width="2.2" stroke-opacity=".4" stroke-dasharray="4 7"/>
-                  <circle cx="66" cy="178" r="6" fill="#070d1c" stroke="#2563EB" stroke-width="2.5"/>
-                  <g transform="translate(296 56)"><path d="M0 -13 C 7 -13 11 -7 11 -2 C 11 5 0 13 0 13 C 0 13 -11 5 -11 -2 C -11 -7 -7 -13 0 -13 Z" fill="#2563EB"/><circle cx="0" cy="-2" r="3.6" fill="#070d1c"/></g>
-                  <circle r="5" fill="#fff"><animateMotion dur="5.5s" repeatCount="indefinite" rotate="auto" path="M66 178 C 118 150, 128 88, 182 80 S 268 112, 296 56"/></circle>
-                  <circle r="10" fill="#2563EB" fill-opacity=".25"><animateMotion dur="5.5s" repeatCount="indefinite" path="M66 178 C 118 150, 128 88, 182 80 S 268 112, 296 56"/></circle>
-                  <circle r="4.2" fill="#60A5FA"><animateMotion dur="7s" repeatCount="indefinite" rotate="auto" path="M66 178 C 96 196, 170 200, 210 168 S 286 150, 318 182"/></circle>
-                  <circle r="4.2" fill="#60A5FA"><animateMotion dur="6s" repeatCount="indefinite" rotate="auto" path="M66 178 C 80 120, 60 86, 110 50"/></circle>
-                </svg>
+                <div class="kpi"><div class="kl">Devolvidas</div><div class="kv warn" data-count="1">0</div><div class="kt">insucesso · retorno</div></div>
+                <div class="kpi"><div class="kl">Recebidos</div><div class="kv" data-count="58">0</div><div class="kt">pedidos hoje</div></div>
               </div>
             </main>
             <aside class="cmd-aside">
               <div class="gauge">
                 <svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="32" fill="none" stroke="#16233a" stroke-width="8"/><circle id="gaugeArc" cx="40" cy="40" r="32" fill="none" stroke="#10B981" stroke-width="8" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 40 40)"/></svg>
-                <div><div class="gl">SLA no prazo</div><div class="gv" data-count="98" data-suffix="%">0</div><div class="gd">meta 95% · acima</div></div>
+                <div><div class="gl">SLA no prazo</div><div class="gv" data-count="98" data-suffix="%">0</div><div class="gd">meta 95% · acima · 12 veíc. ativos</div></div>
               </div>
-              <div class="feed">
-                <div class="fh"><span>Eventos ao vivo</span><span class="cmd-live"><span class="lv"></span></span></div>
-                <div class="frow"><span class="fdot blue"></span><div><div class="ft"><b>#48215</b> despachado · P. Souza</div><div class="fm">agora · auto-dispatch</div></div></div>
-                <div class="frow"><span class="fdot ok"></span><div><div class="ft"><b>POD</b> registrado · #48210</div><div class="fm">há 14s · foto + assinatura</div></div></div>
-                <div class="frow"><span class="fdot warn"></span><div><div class="ft"><b>#48212</b> risco de SLA · +6min</div><div class="fm">há 38s · rota recalculada</div></div></div>
-                <div class="frow"><span class="fdot"></span><div><div class="ft"><b>Webhook</b> enviado ao ERP</div><div class="fm">há 51s · status entregue</div></div></div>
+              <div class="resumo">
+                <div class="rh">Resumo de hoje</div>
+                <div class="rrow"><span class="rl">Faturamento</span><span class="rv ok">R$ 4.380,00</span></div>
+                <div class="rrow"><span class="rl">Ticket médio</span><span class="rv">R$ 75,50</span></div>
+                <div class="rrow"><span class="rl">Aguardando despacho</span><span class="rv">4 <small>comandas</small></span></div>
+                <div class="rrow"><span class="rl">Frota ativa</span><span class="rv">12 <small>/ 14 online</small></span></div>
               </div>
             </aside>
           </div>
