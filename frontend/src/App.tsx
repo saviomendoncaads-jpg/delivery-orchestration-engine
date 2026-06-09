@@ -1683,6 +1683,7 @@ export default function App() {
   const destinationMarkersRef = useRef<Map<string, any>>(new Map());
   const vehicleMarkersRef = useRef<Map<string, any>>(new Map());
   const routeLinesRef = useRef<Map<string, any>>(new Map());
+  const currentLocMarkerRef = useRef<any>(null); // marcador "você está aqui" (GPS)
 
   // Romaneio e Impressão Térmica
   const [selectedForManifest, setSelectedForManifest] = useState<string[]>([]);
@@ -5331,6 +5332,59 @@ export default function App() {
                 </button>
               </div>
             )}
+
+            {/* Botão flutuante: recentraliza o mapa na localização atual (GPS do dispositivo) */}
+            <button
+              type="button"
+              className="map-recenter-btn"
+              title="Recentralizar na minha localização atual"
+              aria-label="Recentralizar na localização atual"
+              onClick={() => {
+                const map = leafletMapRef.current;
+                if (!map) return;
+                if (!navigator.geolocation) {
+                  alert('Este navegador não suporta geolocalização.');
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    const latlng: [number, number] = [latitude, longitude];
+                    map.setView(latlng, Math.max(map.getZoom(), 16), { animate: true });
+                    const hereIcon = L.divIcon({
+                      className: 'here-icon-wrapper',
+                      html: `<div class="map-here" style="position: absolute; transform: translate(-50%, -50%); left: 0; top: 0;"></div>`,
+                      iconSize: [0, 0],
+                      iconAnchor: [0, 0]
+                    });
+                    if (currentLocMarkerRef.current) {
+                      try { map.removeLayer(currentLocMarkerRef.current); } catch { /* noop */ }
+                    }
+                    currentLocMarkerRef.current = L.marker(latlng, { icon: hereIcon, zIndexOffset: 1000 }).addTo(map);
+                  },
+                  (err) => {
+                    const msg = err.code === err.PERMISSION_DENIED
+                      ? 'Permissão de localização negada. Libere no navegador (cadeado da URL → Localização → Permitir) e tente de novo.'
+                      : err.code === err.POSITION_UNAVAILABLE
+                        ? 'Localização indisponível no momento.'
+                        : err.code === err.TIMEOUT
+                          ? 'Tempo esgotado ao obter localização.'
+                          : 'Erro de geolocalização: ' + err.message;
+                    alert(msg);
+                  },
+                  { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="12" r="7" />
+                <line x1="12" y1="1.5" x2="12" y2="4.5" />
+                <line x1="12" y1="19.5" x2="12" y2="22.5" />
+                <line x1="1.5" y1="12" x2="4.5" y2="12" />
+                <line x1="19.5" y1="12" x2="22.5" y2="12" />
+                <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
           </div>
 
           <div className="split-telemetry-container">

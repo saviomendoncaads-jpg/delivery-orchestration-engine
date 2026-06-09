@@ -3218,3 +3218,51 @@ body {
   box-shadow: 0 8px 18px -5px rgba(20, 184, 212, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .map-loc-btn:active { transform: translateY(1px) scale(0.99); }
+
+/* Botão flutuante "recentralizar na localização atual" (inferior direito) */
+.map-recenter-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4);
+  transition: transform 0.08s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.map-recenter-btn:hover {
+  color: #1a73e8;
+  box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.5);
+}
+.map-recenter-btn:active { transform: scale(0.94); }
+
+/* Marcador "você está aqui" (GPS) — ponto azul com pulso de precisão */
+.map-here {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.35), 0 2px 6px rgba(15, 23, 42, 0.45);
+}
+.map-here::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(26, 115, 232, 0.5);
+  animation: here-pulse 1.8s ease-out infinite;
+}
+@keyframes here-pulse {
+  0% { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
