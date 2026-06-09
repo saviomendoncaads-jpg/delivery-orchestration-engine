@@ -245,8 +245,15 @@ async function inicializarBanco() {
       PRECO DECIMAL(10, 2) NOT NULL,
       LOJA_ID VARCHAR(100) NULL,
       ATIVO BIT NOT NULL DEFAULT 1,
-      IMAGEM_URL NVARCHAR(500) NULL
+      IMAGEM_URL NVARCHAR(500) NULL,
+      DESCRICAO NVARCHAR(MAX) NULL
     );
+
+    -- Descrição do produto exibida no cardápio público (vitrine do cliente)
+    IF OBJECT_ID('PRODUTOS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PRODUTOS') AND name = 'DESCRICAO')
+    BEGIN
+      ALTER TABLE PRODUTOS ADD DESCRICAO NVARCHAR(MAX) NULL;
+    END
 
     -- Garante que se a tabela LOJAS já existe, ela tenha a coluna CNPJ
     IF OBJECT_ID('LOJAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('LOJAS') AND name = 'CNPJ')
@@ -506,13 +513,13 @@ async function inicializarBanco() {
     const prodCount = await pool.request().query('SELECT COUNT(*) as qtd FROM PRODUTOS');
     if (prodCount.recordset[0].qtd === 0 && process.env.SEED_DEMO !== 'false') {
       const defaultProducts = [
-        { id: 'prod-1', nome: 'Pizza Margherita', preco: 42.90, imagemUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500' },
-        { id: 'prod-2', nome: 'Pizza Calabresa', preco: 45.90, imagemUrl: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=500' },
-        { id: 'prod-3', nome: 'Pizza Quatro Queijos', preco: 49.90, imagemUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500' },
-        { id: 'prod-4', nome: 'Coca-Cola 2L', preco: 11.00, imagemUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500' },
-        { id: 'prod-5', nome: 'Guaraná Antarctica 2L', preco: 9.90, imagemUrl: 'https://images.unsplash.com/photo-1527960656366-ee418099e338?w=500' },
-        { id: 'prod-6', nome: 'Água Mineral Sem Gás', preco: 4.50, imagemUrl: 'https://images.unsplash.com/photo-1608885828989-43a110d13b4c?w=500' },
-        { id: 'prod-7', nome: 'Batata Frita Tradicional', preco: 25.00, imagemUrl: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500' }
+        { id: 'prod-1', nome: 'Pizza Margherita', preco: 42.90, imagemUrl: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=500', descricao: 'Molho de tomate italiano, mussarela fresca e manjericão.' },
+        { id: 'prod-2', nome: 'Pizza Calabresa', preco: 45.90, imagemUrl: 'https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?w=500', descricao: 'Calabresa artesanal fatiada, cebola roxa e orégano.' },
+        { id: 'prod-3', nome: 'Pizza Quatro Queijos', preco: 49.90, imagemUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500', descricao: 'Mussarela, gorgonzola, parmesão e catupiry gratinados.' },
+        { id: 'prod-4', nome: 'Coca-Cola 2L', preco: 11.00, imagemUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500', descricao: 'Garrafa 2 litros, gelada.' },
+        { id: 'prod-5', nome: 'Guaraná Antarctica 2L', preco: 9.90, imagemUrl: 'https://images.unsplash.com/photo-1527960656366-ee418099e338?w=500', descricao: 'Garrafa 2 litros, gelada.' },
+        { id: 'prod-6', nome: 'Água Mineral Sem Gás', preco: 4.50, imagemUrl: 'https://images.unsplash.com/photo-1608885828989-43a110d13b4c?w=500', descricao: 'Garrafa 500ml.' },
+        { id: 'prod-7', nome: 'Batata Frita Tradicional', preco: 25.00, imagemUrl: 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500', descricao: 'Porção generosa, crocante, acompanha molho da casa.' }
       ];
       for (const prod of defaultProducts) {
         await pool.request()
@@ -520,7 +527,8 @@ async function inicializarBanco() {
           .input('nome', mssql.NVarChar, prod.nome)
           .input('preco', mssql.Decimal(10, 2), prod.preco)
           .input('imagemUrl', mssql.NVarChar, prod.imagemUrl)
-          .query('INSERT INTO PRODUTOS (ID, NOME, PRECO, ATIVO, IMAGEM_URL) VALUES (@id, @nome, @preco, 1, @imagemUrl)');
+          .input('descricao', mssql.NVarChar, prod.descricao)
+          .query('INSERT INTO PRODUTOS (ID, NOME, PRECO, ATIVO, IMAGEM_URL, DESCRICAO) VALUES (@id, @nome, @preco, 1, @imagemUrl, @descricao)');
       }
       console.log('[Banco de Dados] Produtos padrão cadastrados com sucesso.');
     }
@@ -1121,7 +1129,8 @@ export async function obterProdutos(lojaId?: string): Promise<Produto[]> {
       preco: Number(row.PRECO),
       lojaId: row.LOJA_ID || undefined,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
-      imagemUrl: row.IMAGEM_URL || undefined
+      imagemUrl: row.IMAGEM_URL || undefined,
+      descricao: row.DESCRICAO || undefined
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter produtos:', err);

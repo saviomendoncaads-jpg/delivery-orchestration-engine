@@ -21,6 +21,7 @@ import { Entrega, Motorista } from './types';
 import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
 import integracaoPedidosRouter from './integracaoPedidos';
 import integracaoEntregasRouter from './integracaoEntregas';
+import vitrineRouter from './vitrine';
 import webhookRouter from './billing/webhookRoutes';
 import { iniciarWorkerWebhooks } from './billing/webhookProcessor';
 import { iniciarDunning } from './billing/dunningScheduler';
@@ -98,6 +99,18 @@ app.use('/api/admin/financeiro', financeiroRouter);
 app.use('/api/integracao', verificarApiKeyIntegracao, integracaoPedidosRouter);
 app.use('/api/integracao', verificarApiKeyIntegracao, integracaoEntregasRouter);
 
+// Vitrine pública (Painel do Cliente): cardápio + checkout consumidos direto pelo
+// navegador do cliente final. Sem credencial — os preços são validados no servidor
+// (vitrine.ts) — e com rate limit próprio por ser rota aberta.
+const vitrineLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Aguarde um instante e tente novamente.' },
+});
+app.use('/api/vitrine', vitrineLimiter, vitrineRouter);
+
 // Monta o Roteador de API do Gateway Ingress
 app.use('/api', apiRouter);
 
@@ -123,6 +136,10 @@ app.use('/assets', express.static(path.join(frontendDist, 'assets')));
 
 // APP em /app — SPA: /app e subrotas servem o index.html do app.
 app.get(['/app', '/app/*'], (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+
+// Cardápio público (Painel do Cliente) em /loja/<lojaId> — mesma SPA React;
+// o main.tsx roteia pelo pathname e carrega só o chunk da vitrine.
+app.get(['/loja', '/loja/*'], (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
 
 // LANDING pública na raiz (serve site/index.html, favicon, etc.).
 app.use(express.static(siteDir));

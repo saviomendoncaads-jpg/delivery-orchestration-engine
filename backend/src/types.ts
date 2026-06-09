@@ -201,4 +201,5 @@ export interface Produto {
   lojaId?: string;
   ativo: boolean;
   imagemUrl?: string;
+  descricao?: string;
 }

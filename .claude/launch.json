@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "http-server", "frontend/dist", "-p", "4190", "-c-1", "--silent"],
       "port": 4190
+    },
+    {
+      "name": "vitrine",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--mode", "preview"],
+      "port": 5173
     }
   ]
 }
