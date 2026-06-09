@@ -16,6 +16,7 @@ import { BentoItem } from './ui/cybernetic-bento-grid';
 interface EntregaLite {
   id: string;
   status: string;
+  valor?: number;
   despachadoEm?: string;
   dataHoraConclusao?: string;
   atualizadoEm?: string;
@@ -45,6 +46,10 @@ interface Props {
 }
 
 const STATUS_ATIVOS = ['DESPACHADO', 'EM_TRANSITO', 'NO_LOCAL', 'ALERTA_INCIDENTE', 'SLA_ALERTA'];
+// Comandas "encerradas" do dia — não contam mais como operação em aberto.
+const STATUS_FINALIZADOS = ['ENTREGUE', 'RECUSADO_INSUCESSO', 'CANCELADO', 'PRODUTO_RETORNADO_ESTOQUE'];
+// Comandas que ainda não saíram para entrega (fila de despacho).
+const STATUS_AGUARDANDO = ['RECEBIDO', 'EM_PREPARO'];
 const META_SLA = 95; // meta de SLA no prazo (%)
 
 function isHoje(iso?: string): boolean {
@@ -55,42 +60,8 @@ function isHoje(iso?: string): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
-function shortId(id: string): string {
-  if (!id) return '';
-  return id.length > 8 ? '…' + id.slice(-6) : id;
-}
-
-function tempoRelativo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.max(0, Math.round(diff / 1000));
-  if (s < 60) return `há ${s}s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `há ${m}min`;
-  const h = Math.round(m / 60);
-  return `há ${h}h`;
-}
-
-function formatarEvento(ev: BrokerEvento, drivers: MotoristaLite[]) {
-  const id = shortId(ev.deliveryId);
-  const status = ev.payload?.status as string | undefined;
-  switch (ev.topic) {
-    case 'entrega.recebida':
-      return { cor: 'var(--color-cyan)', titulo: 'Pedido recebido', detalhe: `#${id} · fila de despacho` };
-    case 'entrega.despachada': {
-      const drv = drivers.find(d => d.id === ev.payload?.driverId);
-      return { cor: '#3b82f6', titulo: `#${id} despachado`, detalhe: `${drv ? drv.name : 'motorista'} · auto-dispatch` };
-    }
-    case 'ALERTA_GERADO':
-      if (status === 'SLA_ALERTA') return { cor: 'var(--color-amber)', titulo: `#${id} risco de SLA`, detalhe: 'rota recalculada' };
-      return { cor: 'var(--color-rose)', titulo: `#${id} incidente`, detalhe: ev.payload?.gravidade === 'critico' ? 'crítico · rota' : 'aviso' };
-    case 'entrega.monitorada':
-      if (status === 'ENTREGUE') return { cor: 'var(--color-emerald)', titulo: `POD registrado · #${id}`, detalhe: 'foto + assinatura' };
-      if (status === 'NO_LOCAL') return { cor: 'var(--color-emerald)', titulo: `#${id} chegou ao local`, detalhe: 'aguardando POD' };
-      if (status === 'RECUSADO_INSUCESSO') return { cor: 'var(--color-rose)', titulo: `#${id} insucesso`, detalhe: 'retorno ao CD' };
-      return { cor: 'var(--text-muted)', titulo: `#${id} atualizado`, detalhe: status || '' };
-    default:
-      return { cor: 'var(--text-muted)', titulo: ev.topic, detalhe: `#${id}` };
-  }
+function fmtBRL(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona }: Props) {
@@ -126,6 +97,14 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
 
     const frotaAtiva = drivers.filter(d => d.dispositivoConectado).length;
 
+    // Resumo financeiro do dia: valor das comandas em operação (abertas) + as
+    // concluídas hoje. Não inventa dado — soma o `valor` que já vem em cada comanda.
+    const abertas = deliveries.filter(d => !STATUS_FINALIZADOS.includes(d.status));
+    const comandasDoDia = [...abertas, ...concluidasHoje];
+    const faturamento = comandasDoDia.reduce((acc, d) => acc + (d.valor || 0), 0);
+    const ticketMedio = comandasDoDia.length ? faturamento / comandasDoDia.length : 0;
+    const aguardando = deliveries.filter(d => STATUS_AGUARDANDO.includes(d.status)).length;
+
     return {
       emRota: ativas.length,
       despachando,
@@ -133,7 +112,10 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
       tempoMedio,
       slaPct,
       frotaAtiva,
-      eventos: eventosTenant.slice(0, 6),
+      frotaTotal: drivers.length,
+      faturamento,
+      ticketMedio,
+      aguardando,
     };
   }, [deliveries, drivers, liveEvents]);
 
@@ -142,8 +124,6 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
   const CIRC = 2 * Math.PI * R;
   const offset = CIRC * (1 - m.slaPct / 100);
   const slaCor = m.slaPct >= META_SLA ? 'var(--color-emerald)' : m.slaPct >= META_SLA - 5 ? 'var(--color-amber)' : 'var(--color-rose)';
-
-  const eventos = m.eventos;
 
   return (
     <section className="glass-panel centro-ops-panel">
@@ -183,7 +163,7 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
           </BentoItem>
         </div>
 
-        {/* Coluna direita: gauge de SLA + eventos ao vivo */}
+        {/* Coluna direita: gauge de SLA + resumo financeiro do dia */}
         <div>
           <BentoItem className="centro-ops-gauge">
             <svg width="64" height="64" viewBox="0 0 64 64" style={{ flex: 'none' }}>
@@ -203,24 +183,24 @@ export default function CentroOperacoes({ deliveries, drivers, liveEvents, zona 
             </div>
           </BentoItem>
 
-          <BentoItem className="centro-ops-feed">
-            <div className="centro-ops-feed-title">Eventos ao vivo</div>
-            {eventos.length === 0 ? (
-              <div className="centro-ops-feed-empty">Aguardando eventos da operação…</div>
-            ) : (
-              eventos.map(ev => {
-                const f = formatarEvento(ev, drivers);
-                return (
-                  <div key={ev.id} className="centro-ops-feed-item">
-                    <span className="centro-ops-dot" style={{ background: f.cor }} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="centro-ops-feed-titulo">{f.titulo}</div>
-                      <div className="centro-ops-feed-detalhe">{tempoRelativo(ev.timestamp)} · {f.detalhe}</div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <BentoItem className="centro-ops-resumo">
+            <div className="centro-ops-feed-title">Resumo de hoje</div>
+            <div className="centro-ops-resumo-row">
+              <span className="centro-ops-resumo-label">Faturamento</span>
+              <span className="centro-ops-resumo-value" style={{ color: 'var(--color-emerald)' }}>{fmtBRL(m.faturamento)}</span>
+            </div>
+            <div className="centro-ops-resumo-row">
+              <span className="centro-ops-resumo-label">Ticket médio</span>
+              <span className="centro-ops-resumo-value">{fmtBRL(m.ticketMedio)}</span>
+            </div>
+            <div className="centro-ops-resumo-row">
+              <span className="centro-ops-resumo-label">Aguardando despacho</span>
+              <span className="centro-ops-resumo-value">{m.aguardando}<small> comandas</small></span>
+            </div>
+            <div className="centro-ops-resumo-row">
+              <span className="centro-ops-resumo-label">Frota ativa</span>
+              <span className="centro-ops-resumo-value">{m.frotaAtiva}<small> / {m.frotaTotal} online</small></span>
+            </div>
           </BentoItem>
         </div>
       </div>

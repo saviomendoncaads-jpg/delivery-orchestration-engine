@@ -2867,8 +2867,8 @@ body {
   margin-bottom: 0.7rem;
 }
 
-.centro-ops-feed {
-  padding: 0.85rem 1.1rem 0.5rem;
+.centro-ops-resumo {
+  padding: 0.85rem 1.1rem 0.7rem;
 }
 
 .centro-ops-feed-title {
@@ -2879,41 +2879,34 @@ body {
   margin-bottom: 0.4rem;
 }
 
-.centro-ops-feed-empty {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  padding: 0.6rem 0;
-}
-
-.centro-ops-feed-item {
+.centro-ops-resumo-row {
   display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 0.6rem;
-  padding: 0.5rem 0;
+  padding: 0.42rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.centro-ops-feed-item:last-child { border-bottom: none; }
+.centro-ops-resumo-row:last-child { border-bottom: none; }
 
-.centro-ops-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 5px;
-  flex: none;
+.centro-ops-resumo-label {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
 }
 
-.centro-ops-feed-titulo {
-  font-size: 0.78rem;
+.centro-ops-resumo-value {
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.centro-ops-feed-detalhe {
+.centro-ops-resumo-value small {
   font-size: 0.66rem;
+  font-weight: 500;
   color: var(--text-muted);
-  margin-top: 0.05rem;
 }
 
 @media (max-width: 900px) {
