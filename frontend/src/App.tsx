@@ -40,6 +40,10 @@ function latLngToGrid(lat: number, lng: number): { x: number; y: number } {
 // Cache global de rotas OSRM para evitar requisições redundantes e rate limits
 const osrmRoutesCache = new Map<string, [number, number][]>();
 
+// Paleta para diferenciar múltiplas entregas no mapa. Com 1 entrega, a rota é azul;
+// com mais, cada uma recebe a próxima cor (verde, amarelo, vermelho, preto, roxo...).
+const ROUTE_COLORS = ['#1a73e8', '#16a34a', '#f4b400', '#ea4335', '#111827', '#7c3aed'];
+
 // Marcador da loja (hub) no mapa — estilo Waze: badge branco com ícone de loja
 // e o NOME da loja exibido logo acima do indicador (via CSS ::after / --hub-name).
 function hubIconHtml(name: string): string {
@@ -2218,7 +2222,7 @@ export default function App() {
 
     // C. Sincronizar Polylines (Rotas OSRM com cache)
     const currentRouteKeys = new Set<string>();
-    activeDels.forEach(d => {
+    activeDels.forEach((d, idx) => {
       if (!d.rota?.path) return;
       const key = d.id;
       currentRouteKeys.add(key);
@@ -2232,18 +2236,13 @@ export default function App() {
 
       const cacheKey = `${d.id}-${hubLatLng[0].toFixed(5)}-${hubLatLng[1].toFixed(5)}-${endLatLng[0].toFixed(5)}-${endLatLng[1].toFixed(5)}`;
       const isSelected = d.id === selectedDeliveryId;
-      const hasIncident = d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA';
 
-      // Estilo Waze em tiles claros: rota selecionada em azul vivo, grossa e sólida;
-      // as demais finas, mais claras e tracejadas. Incidente em vermelho.
-      const color = isSelected
-        ? '#1a73e8'
-        : hasIncident
-        ? '#f43f5e'
-        : '#5b8def';
-      const opacity = isSelected ? 0.95 : 0.5;
-      const weight = isSelected ? 6 : 3;
-      const dashArray = isSelected ? null : '6, 8';
+      // Linha CONTÍNUA (sólida). Cada entrega tem uma cor distinta da paleta — com 1
+      // entrega a rota é azul; a selecionada fica um pouco mais grossa/opaca pra destacar.
+      const color = ROUTE_COLORS[idx % ROUTE_COLORS.length];
+      const opacity = isSelected ? 1 : 0.85;
+      const weight = isSelected ? 6 : 4;
+      const dashArray: string | null = null;
 
       const drawPolyline = (latlngs: [number, number][]) => {
         if (routeLinesRef.current.has(key)) {
