@@ -1717,12 +1717,10 @@ export default function App() {
     const valor = getDeliveryValue(e);
     const itens = (e.itens && e.itens.length) ? e.itens : [];
     const esc = (s: any) => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as Record<string, string>)[c]);
-    const win = window.open('', `COMANDA_${e.id}`, 'width=400,height=700');
-    if (!win) { alert('Permita pop-ups para imprimir/abrir a comanda.'); return; }
     const linhasItens = itens.length
       ? itens.map(i => `<div class="row"><span class="it">${esc(i)}</span></div>`).join('')
       : '<div class="muted">Sem itens detalhados</div>';
-    win.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Comanda ${esc(e.id)}</title>
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Comanda ${esc(e.id)}</title>
       <style>
         @page { size: 80mm auto; margin: 0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1761,12 +1759,31 @@ export default function App() {
         <div class="sep"></div>
         <div class="center">Distre - Gestao de Entregas</div>
         <div class="noprint"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
-      </body></html>`);
-    win.document.close();
-    if (modo === 'impressora') {
-      win.focus();
-      setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 400);
-    }
+      </body></html>`;
+
+    // Impressão via IFRAME oculto em vez de window.open: NÃO aciona o bloqueador de
+    // pop-up do navegador (window.open sem gesto do usuário — ex.: auto-impressão de
+    // pedido novo — é SEMPRE bloqueado), então a comanda vai direto pra impressão sem
+    // o aviso "Permita pop-ups" travando a operação.
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const idoc = iframe.contentWindow?.document;
+    if (!idoc) { iframe.remove(); return; }
+    idoc.open(); idoc.write(html); idoc.close();
+
+    let jaImprimiu = false;
+    const dispararImpressao = () => {
+      if (jaImprimiu) return;
+      jaImprimiu = true;
+      try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
+      // Remove o iframe depois que o diálogo/impressão foi disparado.
+      setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 1500);
+    };
+    // onload garante render antes do print; o timeout é fallback caso onload não dispare.
+    iframe.onload = () => setTimeout(dispararImpressao, 150);
+    setTimeout(dispararImpressao, 600);
   };
 
   // Detecta novos pedidos na fila e imprime a comanda automaticamente.
