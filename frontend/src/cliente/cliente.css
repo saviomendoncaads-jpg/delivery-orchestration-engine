@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    VITRINE DISTRE — Painel do Cliente (cardápio público)
    Direção MODELO 2 "High-End Delivery": tema CLARO premium. Cabeçalho em
-   gradiente azul-cobalto, base clara arejada, acento MENTA (online/ativo) e
+   gradiente verde-marca (verde-petróleo), base clara arejada, acento MENTA e
    tiles de categoria vibrantes e ilustrados. Display: Nunito (redonda, quente).
    Prefixo .v- para nunca colidir com App.css / utilities do Tailwind.
    ════════════════════════════════════════════════════════════════════════ */
@@ -20,6 +20,10 @@
   --v-cobalto: #2563eb;
   --v-cobalto-forte: #1d4ed8;
   --v-cobalto-escuro: #1e3a8a;
+  /* Verde da marca: gradiente do cabeçalho (verde-petróleo → verde escuro). */
+  --v-verde-marca: #0d6450;
+  --v-verde-marca-2: #084a39;
+  --v-verde-marca-3: #04291f;
   --v-menta: #10b981;
   --v-menta-clara: #34d399;
   --v-menta-suave: #d1fae5;
@@ -37,7 +41,7 @@
 body:has(.v-pagina) {
   background-color: var(--v-bg);
   background-image:
-    radial-gradient(120% 60% at 50% -10%, rgba(37, 99, 235, 0.1) 0%, transparent 58%),
+    radial-gradient(120% 60% at 50% -10%, rgba(13, 100, 80, 0.12) 0%, transparent 58%),
     radial-gradient(70% 50% at 100% 105%, rgba(16, 185, 129, 0.06) 0%, transparent 55%);
   background-attachment: fixed;
 }
@@ -69,12 +73,12 @@ body:has(.v-pagina) {
   gap: 14px;
   flex-wrap: wrap;
   padding: 18px 22px;
-  background: linear-gradient(135deg, var(--v-cobalto) 0%, var(--v-cobalto-forte) 55%, var(--v-cobalto-escuro) 100%);
+  background: linear-gradient(135deg, var(--v-verde-marca) 0%, var(--v-verde-marca-2) 55%, var(--v-verde-marca-3) 100%);
   border-radius: var(--v-radius-lg);
   position: sticky;
   top: 12px;
   z-index: 30;
-  box-shadow: 0 18px 40px -18px rgba(29, 78, 216, 0.6);
+  box-shadow: 0 18px 40px -18px rgba(4, 41, 31, 0.65);
 }
 
 .v-header-loja {
@@ -144,17 +148,18 @@ body:has(.v-pagina) {
   padding: 11px 16px;
   border-radius: 14px;
   white-space: nowrap;
-  box-shadow: var(--v-sombra-sutil);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
 }
 
+/* Pill translúcido escuro sobre o verde do cabeçalho (igual à referência). */
 .v-chip-aberto {
-  color: #047857;
-  background: #ffffff;
+  color: #a7f3d0;
+  background: rgba(2, 26, 19, 0.42);
 }
 
 .v-chip-fechado {
-  color: var(--v-texto-2);
-  background: rgba(255, 255, 255, 0.9);
+  color: rgba(226, 236, 232, 0.85);
+  background: rgba(2, 26, 19, 0.42);
 }
 
 .v-chip-pulso {
