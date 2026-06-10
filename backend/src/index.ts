@@ -22,6 +22,7 @@ import financeiroRouter, { inicializarFinanceiro } from './financeiroService';
 import integracaoPedidosRouter from './integracaoPedidos';
 import integracaoEntregasRouter from './integracaoEntregas';
 import vitrineRouter from './vitrine';
+import gestaoVitrineRouter, { uploadsDir } from './gestaoVitrine';
 import webhookRouter from './billing/webhookRoutes';
 import { iniciarWorkerWebhooks } from './billing/webhookProcessor';
 import { iniciarDunning } from './billing/dunningScheduler';
@@ -70,6 +71,10 @@ app.use(cors(corsOptions));
 // Webhooks do gateway de pagamento: montados ANTES do express.json para receber
 // o corpo BRUTO (Buffer) e validar a assinatura HMAC. As demais rotas seguem JSON.
 app.use('/api/billing/webhooks', express.raw({ type: '*/*' }), webhookRouter);
+
+// Gestão da vitrine (painel da loja): CRUD de produtos, logo e upload de imagens.
+// Montado ANTES do json global para usar um limite maior (imagens em base64).
+app.use('/api/gestao', express.json({ limit: '5mb' }), gestaoVitrineRouter);
 
 app.use(express.json());
 
@@ -134,6 +139,9 @@ const siteDir = path.join(__dirname, '..', '..', 'site');
 // Assets do app React (sempre na raiz /assets).
 app.use('/assets', express.static(path.join(frontendDist, 'assets')));
 
+// Imagens enviadas pelo painel (produtos da vitrine, logomarca da loja).
+app.use('/uploads', express.static(uploadsDir, { maxAge: '7d', immutable: true }));
+
 // APP em /app — SPA: /app e subrotas servem o index.html do app.
 app.get(['/app', '/app/*'], (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
 
@@ -146,7 +154,7 @@ app.use(express.static(siteDir));
 
 // Fallback: qualquer outra rota não-API/WS/health/assets cai na LANDING.
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health' || req.path.startsWith('/assets')) return next();
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health' || req.path.startsWith('/assets') || req.path.startsWith('/uploads')) return next();
   res.sendFile(path.join(siteDir, 'index.html'));
 });
 

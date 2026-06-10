@@ -175,6 +175,7 @@ export interface Loja {
   statusFinanceiro?: string;  // 'REGULAR' | 'INADIMPLENTE' | 'SUSPENSO' | 'CANCELADO' — billing por loja
   latitude?: number;   // coordenada geográfica resolvida a partir do endereço (Nominatim)
   longitude?: number;
+  logoUrl?: string;    // logomarca exibida no cabeçalho da vitrine pública
 }
 
 export interface Sessao {

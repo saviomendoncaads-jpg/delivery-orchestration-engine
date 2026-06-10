@@ -47,3 +47,6 @@ backend/*.json
 backend/src/*.json
 !backend/package.json
 !backend/tsconfig.json
+
+# Imagens enviadas pelo painel (produtos/logo da vitrine) - dados locais, fora do git
+backend/uploads/

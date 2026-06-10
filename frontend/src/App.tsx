@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { io, Socket } from 'socket.io-client';
 import CentroOperacoes, { type BrokerEvento } from './components/CentroOperacoes';
 import KanbanComandas from './components/KanbanComandas';
+import GestaoVitrine from './components/GestaoVitrine';
 import './App.css';
 
 declare const L: any;
@@ -1155,6 +1156,7 @@ export default function App() {
   ]);
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [showVitrineModal, setShowVitrineModal] = useState(false);
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverVehicleType, setNewDriverVehicleType] = useState('motorcycle');
   const [newVehicleName, setNewVehicleName] = useState('');
@@ -6126,8 +6128,24 @@ export default function App() {
       <div className="fab-container">
         {fabOpen && (
           <div className="fab-menu">
-            <button 
-              className="fab-menu-item" 
+            {sessao?.tipo === 'loja' && sessao.lojaId && (
+              <button
+                className="fab-menu-item"
+                onClick={() => {
+                  setFabOpen(false);
+                  setShowVitrineModal(true);
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9 L4.4 4.5 H19.6 L21 9" />
+                  <path d="M4.5 9 V19.5 H19.5 V9" />
+                  <path d="M9.5 19.5 V14 H14.5 V19.5" />
+                </svg>
+                Vitrine & Produtos
+              </button>
+            )}
+            <button
+              className="fab-menu-item"
               onClick={() => {
                 setFabOpen(false);
                 setReportPhase('filters');
@@ -6192,6 +6210,17 @@ export default function App() {
           )}
         </button>
       </div>
+
+      {/* Modal Vitrine & Produtos (cardápio público da loja) */}
+      {showVitrineModal && sessao?.tipo === 'loja' && sessao.lojaId && (
+        <GestaoVitrine
+          backendUrl={BACKEND_URL}
+          token={sessao.token}
+          lojaId={sessao.lojaId}
+          nomeLoja={sessao.nomeLoja || 'Minha Loja'}
+          onClose={() => setShowVitrineModal(false)}
+        />
+      )}
 
       {/* Modal do Relatório Analítico */}
       {reportModalOpen && createPortal(

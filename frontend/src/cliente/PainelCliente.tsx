@@ -5,8 +5,9 @@ import CarrinhoDrawer from './components/CarrinhoDrawer';
 import CheckoutForm from './components/CheckoutForm';
 import PedidoConfirmado from './components/PedidoConfirmado';
 import { buscarCardapio } from './services/pedidoService';
+import { urlImagem } from './services/api';
 import { formatarPreco } from './types';
-import type { CardapioResposta, PedidoConfirmacao } from './types';
+import type { CardapioResposta, LojaVitrine, PedidoConfirmacao } from './types';
 import './cliente.css';
 
 // ============================================================================
@@ -20,6 +21,25 @@ type Tela = 'catalogo' | 'checkout' | 'confirmado';
 function extrairLojaId(): string {
   const m = window.location.pathname.match(/^\/loja\/([^/]+)/);
   return m ? decodeURIComponent(m[1]) : '';
+}
+
+// Logomarca da loja no cabeçalho: usa a imagem configurada no painel;
+// sem logo (ou com URL quebrada), cai na inicial do nome em âmbar.
+function LogoLoja({ loja }: { loja: LojaVitrine }) {
+  const [falhou, setFalhou] = useState(false);
+  const src = urlImagem(loja.logoUrl);
+  if (!src || falhou) {
+    return (
+      <div className="v-header-avatar" aria-hidden="true">
+        {loja.nome.charAt(0).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <div className="v-header-avatar v-header-avatar--logo">
+      <img src={src} alt={`Logo de ${loja.nome}`} onError={() => setFalhou(true)} />
+    </div>
+  );
 }
 
 // Barra flutuante "Ver sacola" — só aparece no catálogo com itens na sacola.
@@ -51,9 +71,7 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
     <div className="v-pagina">
       <header className="v-header">
         <div className="v-header-loja">
-          <div className="v-header-avatar" aria-hidden="true">
-            {loja.nome.charAt(0).toUpperCase()}
-          </div>
+          <LogoLoja loja={loja} />
           <div>
             <h1>{loja.nome}</h1>
             {localizacao && <p className="v-header-local">{localizacao}</p>}

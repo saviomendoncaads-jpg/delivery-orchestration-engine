@@ -15,6 +15,7 @@ export interface LojaVitrine {
   bairro?: string;
   cidade?: string;
   uf?: string;
+  logoUrl?: string;
   aceitandoPedidos: boolean;
 }
 

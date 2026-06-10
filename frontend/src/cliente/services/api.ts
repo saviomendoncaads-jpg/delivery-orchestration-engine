@@ -38,3 +38,11 @@ export async function apiPost<T>(caminho: string, corpo: unknown): Promise<T> {
   if (!res.ok) await lerErro(res);
   return res.json() as Promise<T>;
 }
+
+// Imagens enviadas pelo painel chegam como caminho relativo ('/uploads/...').
+// Em produção a vitrine é servida pela mesma origem; em dev o prefixo do
+// backend precisa ser aplicado para a imagem não cair no servidor do Vite.
+export function urlImagem(url?: string): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith('/') ? `${BACKEND_URL}${url}` : url;
+}

@@ -291,6 +291,12 @@ async function inicializarBanco() {
       ALTER TABLE LOJAS ADD CEP VARCHAR(10) NULL;
     END
 
+    -- Logomarca da loja exibida no cabeçalho da vitrine pública (Painel do Cliente)
+    IF OBJECT_ID('LOJAS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('LOJAS') AND name = 'LOGO_URL')
+    BEGIN
+      ALTER TABLE LOJAS ADD LOGO_URL NVARCHAR(600) NULL;
+    END
+
     -- Cria índice único condicional para CNPJ da loja (permitindo que registros antigos fiquem NULL)
     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UIX_LOJAS_CNPJ' AND object_id = OBJECT_ID('LOJAS'))
     BEGIN
@@ -998,7 +1004,8 @@ export async function obterLojas(): Promise<Loja[]> {
       recebePedidos: row.RECEBE_PEDIDOS === 1 || row.RECEBE_PEDIDOS === true,
       statusFinanceiro: row.STATUS_FINANCEIRO || 'REGULAR',
       latitude: row.LATITUDE !== null && row.LATITUDE !== undefined ? Number(row.LATITUDE) : undefined,
-      longitude: row.LONGITUDE !== null && row.LONGITUDE !== undefined ? Number(row.LONGITUDE) : undefined
+      longitude: row.LONGITUDE !== null && row.LONGITUDE !== undefined ? Number(row.LONGITUDE) : undefined,
+      logoUrl: row.LOGO_URL || undefined
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter lojas:', err);
@@ -1031,10 +1038,11 @@ export async function salvarLoja(l: Loja) {
           RECEBE_PEDIDOS = @recebePedidos,
           STATUS_FINANCEIRO = @statusFinanceiro,
           LATITUDE = @latitude,
-          LONGITUDE = @longitude
+          LONGITUDE = @longitude,
+          LOGO_URL = @logoUrl
       WHEN NOT MATCHED THEN
-        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, NUMERO, BAIRRO, CIDADE, UF, CEP, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM, RECEBE_PEDIDOS, STATUS_FINANCEIRO, LATITUDE, LONGITUDE)
-        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @numero, @bairro, @cidade, @uf, @cep, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm, @recebePedidos, @statusFinanceiro, @latitude, @longitude);
+        INSERT (ID, EMPRESA_ID, NOME, CNPJ, ENDERECO, NUMERO, BAIRRO, CIDADE, UF, CEP, USUARIO, SENHA_HASH, CHAVE_ACESSO, ATIVO, CRIADO_EM, RECEBE_PEDIDOS, STATUS_FINANCEIRO, LATITUDE, LONGITUDE, LOGO_URL)
+        VALUES (@id, @empresaId, @nome, @cnpj, @endereco, @numero, @bairro, @cidade, @uf, @cep, @usuario, @senhaHash, @chaveAcesso, @ativo, @criadoEm, @recebePedidos, @statusFinanceiro, @latitude, @longitude, @logoUrl);
     `;
     await pool.request()
       .input('id', mssql.VarChar, l.id)
@@ -1056,6 +1064,7 @@ export async function salvarLoja(l: Loja) {
       .input('statusFinanceiro', mssql.VarChar, l.statusFinanceiro || 'REGULAR')
       .input('latitude', mssql.Float, l.latitude !== undefined ? l.latitude : null)
       .input('longitude', mssql.Float, l.longitude !== undefined ? l.longitude : null)
+      .input('logoUrl', mssql.NVarChar, l.logoUrl || null)
       .query(query);
   } catch (err) {
     console.error(`[Banco de Dados] Erro ao salvar loja ${l.id}:`, err);
@@ -1136,5 +1145,61 @@ export async function obterProdutos(lojaId?: string): Promise<Produto[]> {
     console.error('[Banco de Dados] Erro ao obter produtos:', err);
     return [];
   }
+}
+
+// Lista de gestão do catálogo: SOMENTE os produtos da própria loja (sem os
+// globais), incluindo inativos — é o que a tela "Vitrine & Produtos" edita.
+export async function obterProdutosDaLoja(lojaId: string): Promise<Produto[]> {
+  try {
+    if (!pool) return [];
+    const result = await pool.request()
+      .input('lojaId', mssql.VarChar, lojaId)
+      .query('SELECT * FROM PRODUTOS WHERE LOJA_ID = @lojaId ORDER BY NOME');
+    return result.recordset.map((row: any) => ({
+      id: row.ID,
+      nome: row.NOME,
+      preco: Number(row.PRECO),
+      lojaId: row.LOJA_ID || undefined,
+      ativo: row.ATIVO === 1 || row.ATIVO === true,
+      imagemUrl: row.IMAGEM_URL || undefined,
+      descricao: row.DESCRICAO || undefined
+    }));
+  } catch (err) {
+    console.error('[Banco de Dados] Erro ao obter produtos da loja:', err);
+    return [];
+  }
+}
+
+export async function salvarProduto(p: Produto): Promise<void> {
+  if (!pool) throw new Error('Banco de dados indisponível.');
+  const query = `
+    MERGE INTO PRODUTOS AS target
+    USING (SELECT @id AS ID) AS source
+    ON target.ID = source.ID
+    WHEN MATCHED THEN
+      UPDATE SET NOME = @nome, PRECO = @preco, LOJA_ID = @lojaId, ATIVO = @ativo, IMAGEM_URL = @imagemUrl, DESCRICAO = @descricao
+    WHEN NOT MATCHED THEN
+      INSERT (ID, NOME, PRECO, LOJA_ID, ATIVO, IMAGEM_URL, DESCRICAO)
+      VALUES (@id, @nome, @preco, @lojaId, @ativo, @imagemUrl, @descricao);
+  `;
+  await pool.request()
+    .input('id', mssql.VarChar, p.id)
+    .input('nome', mssql.NVarChar, p.nome)
+    .input('preco', mssql.Decimal(10, 2), p.preco)
+    .input('lojaId', mssql.VarChar, p.lojaId || null)
+    .input('ativo', mssql.Bit, p.ativo ? 1 : 0)
+    .input('imagemUrl', mssql.NVarChar, p.imagemUrl || null)
+    .input('descricao', mssql.NVarChar, p.descricao || null)
+    .query(query);
+}
+
+export async function deletarProduto(id: string, lojaId: string): Promise<boolean> {
+  if (!pool) throw new Error('Banco de dados indisponível.');
+  // O filtro por LOJA_ID garante que uma loja não apaga produto de outra (nem os globais).
+  const result = await pool.request()
+    .input('id', mssql.VarChar, id)
+    .input('lojaId', mssql.VarChar, lojaId)
+    .query('DELETE FROM PRODUTOS WHERE ID = @id AND LOJA_ID = @lojaId');
+  return (result.rowsAffected?.[0] || 0) > 0;
 }
 

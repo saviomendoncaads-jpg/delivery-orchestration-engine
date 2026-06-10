@@ -94,6 +94,7 @@ router.get('/:lojaId', async (req: Request<{ lojaId: string }>, res: Response) =
         bairro: loja.bairro || undefined,
         cidade: loja.cidade || undefined,
         uf: loja.uf || undefined,
+        logoUrl: loja.logoUrl || undefined,
         aceitandoPedidos: !suspensa
       },
       produtos: produtos.map(p => ({

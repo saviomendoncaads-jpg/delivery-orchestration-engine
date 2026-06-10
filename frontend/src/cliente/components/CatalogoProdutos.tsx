@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCarrinho } from '../context/CarrinhoContext';
+import { urlImagem } from '../services/api';
 import { formatarPreco } from '../types';
 import type { ProdutoVitrine } from '../types';
 
@@ -7,7 +8,8 @@ import type { ProdutoVitrine } from '../types';
 // mostra um bloco com a inicial do produto em vez de imagem rasgada.
 function FotoProduto({ produto }: { produto: ProdutoVitrine }) {
   const [falhou, setFalhou] = useState(false);
-  if (!produto.imagemUrl || falhou) {
+  const src = urlImagem(produto.imagemUrl);
+  if (!src || falhou) {
     return (
       <div className="v-card-foto v-card-foto--placeholder" aria-hidden="true">
         <span>{produto.nome.charAt(0).toUpperCase()}</span>
@@ -17,7 +19,7 @@ function FotoProduto({ produto }: { produto: ProdutoVitrine }) {
   return (
     <div className="v-card-foto">
       <img
-        src={produto.imagemUrl}
+        src={src}
         alt={produto.nome}
         loading="lazy"
         onError={() => setFalhou(true)}
