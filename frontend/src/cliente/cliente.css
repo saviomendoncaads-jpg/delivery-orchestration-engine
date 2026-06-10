@@ -1,7 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════════
    VITRINE DISTRE — Painel do Cliente (cardápio público)
-   Direção MODELO 2 "High-End Delivery": tema CLARO premium. Cabeçalho em
-   gradiente verde-marca (verde-petróleo), base clara arejada, acento MENTA e
+   Direção MODELO 2 "High-End Delivery": tema CLARO premium. Cabeçalho com
+   gradiente DIVIDIDO azul-cobalto (esquerda) → verde-menta (direita, onde fica
+   o status), base clara arejada, acento MENTA e
    tiles de categoria vibrantes e ilustrados. Display: Nunito (redonda, quente).
    Prefixo .v- para nunca colidir com App.css / utilities do Tailwind.
    ════════════════════════════════════════════════════════════════════════ */
@@ -73,12 +74,18 @@ body:has(.v-pagina) {
   gap: 14px;
   flex-wrap: wrap;
   padding: 18px 22px;
-  background: linear-gradient(135deg, var(--v-verde-marca) 0%, var(--v-verde-marca-2) 55%, var(--v-verde-marca-3) 100%);
+  /* Header dividido: azul-cobalto à esquerda funde para verde-menta à direita
+     (onde mora o widget de status), igual à referência da Medline Express. */
+  background: linear-gradient(100deg,
+    var(--v-cobalto-forte) 0%,
+    var(--v-cobalto) 46%,
+    #17a06b 70%,
+    var(--v-menta-clara) 100%);
   border-radius: var(--v-radius-lg);
   position: sticky;
   top: 12px;
   z-index: 30;
-  box-shadow: 0 18px 40px -18px rgba(4, 41, 31, 0.65);
+  box-shadow: 0 18px 40px -18px rgba(29, 78, 216, 0.5);
 }
 
 .v-header-loja {
@@ -95,12 +102,12 @@ body:has(.v-pagina) {
   display: grid;
   place-items: center;
   border-radius: 15px;
-  background: linear-gradient(140deg, var(--v-menta-clara) 0%, var(--v-menta) 100%);
-  color: #04231a;
+  background: linear-gradient(140deg, #3b82f6 0%, var(--v-cobalto-forte) 100%);
+  color: #eaf2ff;
   font-family: var(--v-fonte-display);
   font-weight: 900;
   font-size: 1.45rem;
-  box-shadow: 0 8px 20px -8px rgba(16, 185, 129, 0.65);
+  box-shadow: 0 8px 20px -8px rgba(29, 78, 216, 0.6);
 }
 
 .v-header-avatar--logo {
@@ -145,21 +152,21 @@ body:has(.v-pagina) {
   font-weight: 700;
   font-family: var(--v-fonte-display);
   line-height: 1;
-  padding: 11px 16px;
-  border-radius: 14px;
+  padding: 10px 15px;
+  border-radius: 999px;
   white-space: nowrap;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 16px -8px rgba(4, 41, 31, 0.45);
 }
 
-/* Pill translúcido escuro sobre o verde do cabeçalho (igual à referência). */
+/* Pill claro/menta sobre a faixa verde do cabeçalho (igual à referência). */
 .v-chip-aberto {
-  color: #a7f3d0;
-  background: rgba(2, 26, 19, 0.42);
+  color: #047857;
+  background: #e7fbf1;
 }
 
 .v-chip-fechado {
-  color: rgba(226, 236, 232, 0.85);
-  background: rgba(2, 26, 19, 0.42);
+  color: var(--v-texto-2);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .v-chip-pulso {

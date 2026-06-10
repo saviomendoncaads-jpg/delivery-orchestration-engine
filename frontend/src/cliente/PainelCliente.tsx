@@ -144,7 +144,7 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
         </div>
         {loja.aceitandoPedidos ? (
           <span className="v-chip-aberto">
-            <span className="v-chip-pulso" aria-hidden="true" /> Recebendo pedidos
+            <span className="v-chip-pulso" aria-hidden="true" /> ONLINE · Recebendo pedidos
           </span>
         ) : (
           <span className="v-chip-fechado">Pedidos pausados</span>
