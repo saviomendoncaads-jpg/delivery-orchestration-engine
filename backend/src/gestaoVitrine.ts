@@ -50,18 +50,22 @@ function textoLimpo(valor: unknown, max: number): string {
   return valor.trim().slice(0, max);
 }
 
-function validarProdutoEntrada(body: any): { nome: string; preco: number; descricao?: string; imagemUrl?: string } | { erro: string } {
+function validarProdutoEntrada(body: any): { nome: string; preco: number; descricao?: string; imagemUrl?: string; categoria?: string; subcategoria?: string } | { erro: string } {
   const nome = textoLimpo(body?.nome, 255);
   if (!nome) return { erro: 'nome é obrigatório.' };
   const preco = Number(String(body?.preco ?? '').replace(',', '.'));
   if (!Number.isFinite(preco) || preco <= 0 || preco > PRECO_MAXIMO) {
     return { erro: `preco deve ser um número entre 0,01 e ${PRECO_MAXIMO}.` };
   }
+  const categoria = textoLimpo(body?.categoria, 120) || undefined;
   return {
     nome,
     preco: Number(preco.toFixed(2)),
     descricao: textoLimpo(body?.descricao, 500) || undefined,
-    imagemUrl: textoLimpo(body?.imagemUrl, 600) || undefined
+    imagemUrl: textoLimpo(body?.imagemUrl, 600) || undefined,
+    categoria,
+    // Subcategoria solta (sem categoria-mãe) não tem onde aparecer na sidebar.
+    subcategoria: categoria ? textoLimpo(body?.subcategoria, 120) || undefined : undefined
   };
 }
 
@@ -101,7 +105,9 @@ router.post('/produtos', exigirLojaAdimplente, async (req: RequestComSessao, res
       lojaId,
       ativo: true,
       imagemUrl: dados.imagemUrl,
-      descricao: dados.descricao
+      descricao: dados.descricao,
+      categoria: dados.categoria,
+      subcategoria: dados.subcategoria
     };
     await salvarProduto(produto);
     res.status(201).json(produto);
@@ -136,6 +142,8 @@ router.put('/produtos/:id', exigirLojaAdimplente, async (req: RequestComSessao, 
       preco: dados.preco,
       descricao: dados.descricao,
       imagemUrl: dados.imagemUrl,
+      categoria: dados.categoria,
+      subcategoria: dados.subcategoria,
       ativo: typeof req.body?.ativo === 'boolean' ? req.body.ativo : atual.ativo
     };
     await salvarProduto(atualizado);

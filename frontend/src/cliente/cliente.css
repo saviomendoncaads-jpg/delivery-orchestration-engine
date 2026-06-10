@@ -182,6 +182,122 @@ body:has(.v-pagina) {
   font-size: 0.9rem;
 }
 
+/* ── Layout catálogo: sidebar de categorias (240px) + grade fluida ──── */
+.v-vitrine-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.v-sidebar {
+  background: var(--v-card);
+  border: 1px solid var(--v-borda);
+  border-radius: var(--v-radius-lg);
+  padding: 10px;
+  position: sticky;
+  top: 100px; /* abaixo do header sticky */
+}
+
+.v-sidebar-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v-sidebar-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--v-texto-2);
+  font-family: var(--v-fonte-corpo);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.v-sidebar-item:hover {
+  background: rgba(154, 163, 184, 0.08);
+  color: var(--v-texto);
+}
+
+.v-sidebar-item--ativo {
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--v-texto);
+}
+
+/* Borda vertical ciano na extremidade esquerda do item ativo */
+.v-sidebar-item--ativo::before {
+  content: '';
+  position: absolute;
+  left: -10px; /* encosta na borda do container (compensa o padding) */
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--v-ciano);
+}
+
+.v-sidebar-item--ativo .v-sidebar-icone {
+  color: var(--v-ciano);
+}
+
+.v-sidebar-icone {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.v-sidebar-item--mais {
+  color: var(--v-texto-3);
+  font-weight: 500;
+}
+
+.v-sidebar-sublista {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0 0 0 40px; /* indentação alinhada ao texto (ícone 18 + gaps) */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.v-sidebar-sub {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--v-texto-3);
+  font-family: var(--v-fonte-corpo);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.v-sidebar-sub:hover {
+  color: var(--v-texto-2);
+  background: rgba(154, 163, 184, 0.06);
+}
+
+.v-sidebar-sub--ativo {
+  color: var(--v-ciano);
+  font-weight: 600;
+}
+
 .v-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -1031,6 +1147,68 @@ body:has(.v-pagina) {
   font-family: var(--v-fonte-display);
   font-weight: 800;
   letter-spacing: 0.02em;
+}
+
+/* ── Responsivo: sidebar vira trilho horizontal de chips em telas médias ── */
+@media (max-width: 880px) {
+  .v-vitrine-layout {
+    display: block;
+  }
+
+  .v-sidebar {
+    position: static;
+    margin-bottom: 12px;
+    padding: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .v-sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .v-sidebar-lista {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+  }
+
+  .v-sidebar-lista > li {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .v-sidebar-item {
+    width: auto;
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+
+  .v-sidebar-item--ativo::before {
+    display: none; /* sem borda lateral no chip; o fundo ciano já marca o ativo */
+  }
+
+  .v-sidebar-sublista {
+    margin: 0;
+    padding: 0;
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .v-sidebar-sub {
+    white-space: nowrap;
+    border: 1px solid var(--v-borda);
+    border-radius: 999px;
+    padding: 6px 12px;
+  }
+
+  .v-sidebar-sub--ativo {
+    border-color: rgba(34, 211, 238, 0.5);
+    background: rgba(34, 211, 238, 0.08);
+  }
 }
 
 /* ── Responsivo: cards horizontais no celular (padrão app de comida) ── */

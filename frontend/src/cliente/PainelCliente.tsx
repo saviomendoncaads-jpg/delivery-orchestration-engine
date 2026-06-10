@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CarrinhoProvider, useCarrinho } from './context/CarrinhoContext';
 import CatalogoProdutos from './components/CatalogoProdutos';
+import SidebarCategorias, { categoriasDe, filtrarPorCategoria } from './components/SidebarCategorias';
+import type { FiltroCategoria } from './components/SidebarCategorias';
 import CarrinhoDrawer from './components/CarrinhoDrawer';
 import CheckoutForm from './components/CheckoutForm';
 import PedidoConfirmado from './components/PedidoConfirmado';
@@ -61,6 +63,15 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
   const [confirmacao, setConfirmacao] = useState<PedidoConfirmacao | null>(null);
   const { loja, produtos } = cardapio;
 
+  // Sidebar de categorias: a árvore vem dos produtos (configurada no painel da
+  // loja); a categoria com mais itens começa ativa, espelhando a referência.
+  const categorias = useMemo(() => categoriasDe(produtos), [produtos]);
+  const [filtro, setFiltro] = useState<FiltroCategoria>(() => {
+    const arvore = categoriasDe(cardapio.produtos);
+    return arvore.length > 0 ? { categoria: arvore[0].nome } : {};
+  });
+  const produtosVisiveis = useMemo(() => filtrarPorCategoria(produtos, filtro), [produtos, filtro]);
+
   useEffect(() => {
     document.title = `${loja.nome} • Cardápio online`;
   }, [loja.nome]);
@@ -93,7 +104,15 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
           </div>
         )}
 
-        {tela === 'catalogo' && <CatalogoProdutos produtos={produtos} />}
+        {tela === 'catalogo' &&
+          (categorias.length > 0 ? (
+            <div className="v-vitrine-layout">
+              <SidebarCategorias categorias={categorias} filtro={filtro} onFiltrar={setFiltro} />
+              <CatalogoProdutos produtos={produtosVisiveis} />
+            </div>
+          ) : (
+            <CatalogoProdutos produtos={produtos} />
+          ))}
 
         {tela === 'checkout' && (
           <CheckoutForm

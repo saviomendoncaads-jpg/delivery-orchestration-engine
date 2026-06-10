@@ -102,7 +102,9 @@ router.get('/:lojaId', async (req: Request<{ lojaId: string }>, res: Response) =
         nome: p.nome,
         descricao: p.descricao || undefined,
         preco: p.preco,
-        imagemUrl: p.imagemUrl || undefined
+        imagemUrl: p.imagemUrl || undefined,
+        categoria: p.categoria || undefined,
+        subcategoria: p.subcategoria || undefined
       }))
     });
   } catch (err: any) {

@@ -7,6 +7,8 @@ export interface ProdutoVitrine {
   descricao?: string;
   preco: number;
   imagemUrl?: string;
+  categoria?: string;
+  subcategoria?: string;
 }
 
 export interface LojaVitrine {

@@ -15,6 +15,8 @@ interface ProdutoGestao {
   descricao?: string;
   imagemUrl?: string;
   ativo: boolean;
+  categoria?: string;
+  subcategoria?: string;
 }
 
 interface Props {
@@ -25,7 +27,7 @@ interface Props {
   onClose: () => void;
 }
 
-const FORM_VAZIO = { id: '', nome: '', preco: '', descricao: '', imagemUrl: '' };
+const FORM_VAZIO = { id: '', nome: '', preco: '', descricao: '', imagemUrl: '', categoria: '', subcategoria: '' };
 const MAX_IMAGEM_BYTES = 3 * 1024 * 1024;
 
 const estiloInput: React.CSSProperties = {
@@ -82,6 +84,16 @@ export default function GestaoVitrine({ backendUrl, token, lojaId, nomeLoja, onC
   const inputLogoRef = useRef<HTMLInputElement>(null);
 
   const linkVitrine = `${window.location.origin}/loja/${lojaId}`;
+
+  // Sugestões para os datalists: categorias/subcategorias já usadas no catálogo,
+  // para a loja reaproveitar a grafia em vez de criar variações duplicadas.
+  const categoriasExistentes = [...new Set(produtos.map(p => p.categoria).filter((c): c is string => !!c))].sort();
+  const subcategoriasExistentes = [...new Set(
+    produtos
+      .filter(p => !form.categoria.trim() || p.categoria === form.categoria.trim())
+      .map(p => p.subcategoria)
+      .filter((s): s is string => !!s)
+  )].sort();
 
   async function gestaoFetch(caminho: string, options: RequestInit = {}): Promise<any> {
     const res = await fetch(`${backendUrl}${caminho}`, {
@@ -208,7 +220,9 @@ export default function GestaoVitrine({ backendUrl, token, lojaId, nomeLoja, onC
       nome: p.nome,
       preco: p.preco.toFixed(2).replace('.', ','),
       descricao: p.descricao || '',
-      imagemUrl: p.imagemUrl || ''
+      imagemUrl: p.imagemUrl || '',
+      categoria: p.categoria || '',
+      subcategoria: p.subcategoria || ''
     });
     setFormAberto(true);
     setErro(null);
@@ -232,7 +246,9 @@ export default function GestaoVitrine({ backendUrl, token, lojaId, nomeLoja, onC
         nome: form.nome,
         preco,
         descricao: form.descricao,
-        imagemUrl: form.imagemUrl
+        imagemUrl: form.imagemUrl,
+        categoria: form.categoria,
+        subcategoria: form.subcategoria
       });
       const salvo: ProdutoGestao = form.id
         ? await gestaoFetch(`/api/gestao/produtos/${form.id}`, { method: 'PUT', body: corpo })
@@ -388,6 +404,22 @@ export default function GestaoVitrine({ backendUrl, token, lojaId, nomeLoja, onC
                   <label style={estiloLabel}>Descrição (aparece no card do produto)</label>
                   <input style={estiloInput} value={form.descricao} maxLength={500} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Ex.: Analgésico e antitérmico. Caixa com 20 comprimidos." />
                 </div>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 180px' }}>
+                    <label style={estiloLabel}>Categoria (menu lateral da vitrine)</label>
+                    <input style={estiloInput} list="gv-categorias" value={form.categoria} maxLength={120} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} placeholder="Ex.: Medicamentos" />
+                    <datalist id="gv-categorias">
+                      {categoriasExistentes.map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  </div>
+                  <div style={{ flex: '1 1 180px' }}>
+                    <label style={estiloLabel}>Subcategoria (opcional)</label>
+                    <input style={estiloInput} list="gv-subcategorias" value={form.subcategoria} maxLength={120} disabled={!form.categoria.trim()} onChange={e => setForm(f => ({ ...f, subcategoria: e.target.value }))} placeholder="Ex.: Genéricos" />
+                    <datalist id="gv-subcategorias">
+                      {subcategoriasExistentes.map(s => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+                </div>
                 <div>
                   <label style={estiloLabel}>Foto do produto</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -429,6 +461,11 @@ export default function GestaoVitrine({ backendUrl, token, lojaId, nomeLoja, onC
                       <div style={{ fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.nome}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--color-amber)', fontWeight: 700 }}>
                         {p.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {p.categoria && (
+                          <span style={{ color: 'var(--text-secondary)', marginLeft: '0.5rem', fontWeight: 500 }}>
+                            {p.categoria}{p.subcategoria ? ` › ${p.subcategoria}` : ''}
+                          </span>
+                        )}
                         {!p.ativo && <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem', fontWeight: 500 }}>oculto da vitrine</span>}
                       </div>
                     </div>

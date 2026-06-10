@@ -246,13 +246,22 @@ async function inicializarBanco() {
       LOJA_ID VARCHAR(100) NULL,
       ATIVO BIT NOT NULL DEFAULT 1,
       IMAGEM_URL NVARCHAR(500) NULL,
-      DESCRICAO NVARCHAR(MAX) NULL
+      DESCRICAO NVARCHAR(MAX) NULL,
+      CATEGORIA NVARCHAR(120) NULL,
+      SUBCATEGORIA NVARCHAR(120) NULL
     );
 
     -- Descrição do produto exibida no cardápio público (vitrine do cliente)
     IF OBJECT_ID('PRODUTOS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PRODUTOS') AND name = 'DESCRICAO')
     BEGIN
       ALTER TABLE PRODUTOS ADD DESCRICAO NVARCHAR(MAX) NULL;
+    END
+
+    -- Categoria/subcategoria do produto (sidebar de navegação da vitrine)
+    IF OBJECT_ID('PRODUTOS') IS NOT NULL AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PRODUTOS') AND name = 'CATEGORIA')
+    BEGIN
+      ALTER TABLE PRODUTOS ADD CATEGORIA NVARCHAR(120) NULL;
+      ALTER TABLE PRODUTOS ADD SUBCATEGORIA NVARCHAR(120) NULL;
     END
 
     -- Garante que se a tabela LOJAS já existe, ela tenha a coluna CNPJ
@@ -1139,7 +1148,9 @@ export async function obterProdutos(lojaId?: string): Promise<Produto[]> {
       lojaId: row.LOJA_ID || undefined,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
       imagemUrl: row.IMAGEM_URL || undefined,
-      descricao: row.DESCRICAO || undefined
+      descricao: row.DESCRICAO || undefined,
+      categoria: row.CATEGORIA || undefined,
+      subcategoria: row.SUBCATEGORIA || undefined
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter produtos:', err);
@@ -1162,7 +1173,9 @@ export async function obterProdutosDaLoja(lojaId: string): Promise<Produto[]> {
       lojaId: row.LOJA_ID || undefined,
       ativo: row.ATIVO === 1 || row.ATIVO === true,
       imagemUrl: row.IMAGEM_URL || undefined,
-      descricao: row.DESCRICAO || undefined
+      descricao: row.DESCRICAO || undefined,
+      categoria: row.CATEGORIA || undefined,
+      subcategoria: row.SUBCATEGORIA || undefined
     }));
   } catch (err) {
     console.error('[Banco de Dados] Erro ao obter produtos da loja:', err);
@@ -1177,10 +1190,10 @@ export async function salvarProduto(p: Produto): Promise<void> {
     USING (SELECT @id AS ID) AS source
     ON target.ID = source.ID
     WHEN MATCHED THEN
-      UPDATE SET NOME = @nome, PRECO = @preco, LOJA_ID = @lojaId, ATIVO = @ativo, IMAGEM_URL = @imagemUrl, DESCRICAO = @descricao
+      UPDATE SET NOME = @nome, PRECO = @preco, LOJA_ID = @lojaId, ATIVO = @ativo, IMAGEM_URL = @imagemUrl, DESCRICAO = @descricao, CATEGORIA = @categoria, SUBCATEGORIA = @subcategoria
     WHEN NOT MATCHED THEN
-      INSERT (ID, NOME, PRECO, LOJA_ID, ATIVO, IMAGEM_URL, DESCRICAO)
-      VALUES (@id, @nome, @preco, @lojaId, @ativo, @imagemUrl, @descricao);
+      INSERT (ID, NOME, PRECO, LOJA_ID, ATIVO, IMAGEM_URL, DESCRICAO, CATEGORIA, SUBCATEGORIA)
+      VALUES (@id, @nome, @preco, @lojaId, @ativo, @imagemUrl, @descricao, @categoria, @subcategoria);
   `;
   await pool.request()
     .input('id', mssql.VarChar, p.id)
@@ -1190,6 +1203,8 @@ export async function salvarProduto(p: Produto): Promise<void> {
     .input('ativo', mssql.Bit, p.ativo ? 1 : 0)
     .input('imagemUrl', mssql.NVarChar, p.imagemUrl || null)
     .input('descricao', mssql.NVarChar, p.descricao || null)
+    .input('categoria', mssql.NVarChar, p.categoria || null)
+    .input('subcategoria', mssql.NVarChar, p.subcategoria || null)
     .query(query);
 }
 

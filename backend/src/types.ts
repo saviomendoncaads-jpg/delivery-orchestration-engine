@@ -203,4 +203,8 @@ export interface Produto {
   ativo: boolean;
   imagemUrl?: string;
   descricao?: string;
+  // Categoria/subcategoria definidas pela loja no painel (texto livre).
+  // A sidebar de navegação da vitrine deriva a árvore destes campos.
+  categoria?: string;
+  subcategoria?: string;
 }
