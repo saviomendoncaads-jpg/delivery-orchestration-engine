@@ -1,25 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Nunito:wght@400;600;700;800;900&display=swap');
 
 :root {
-  --bg-primary: #090d16;
-  --bg-secondary: #0d131f;
-  --bg-card: #141b27;
-  --border-thin: #1f293d;
-  --border-glass: #1f293d;
-  --border-glow: rgba(0, 242, 254, 0.1);
-  
+  /* === TEMA CLARO "Sleek Enterprise" (Modelo 1) ===
+     Base white-on-grey, acento VERDE (ação primária/SLA). As cores de sistema
+     foram escurecidas o suficiente p/ contraste legível sobre branco. */
+  --bg-primary: #eef2f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --border-thin: #e4e9f2;
+  --border-glass: #e4e9f2;
+  --border-glow: rgba(16, 185, 129, 0.14);
+
   /* System Colors */
-  --color-cyan: #06b6d4;
-  --color-blue: #3b82f6;
-  --color-purple: #8b5cf6;
-  --color-pink: #ec4899;
-  --color-emerald: #10b981;
-  --color-amber: #f59e0b;
-  --color-rose: #f43f5e;
-  
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #4b5563;
+  --color-cyan: #0e9aae;
+  --color-blue: #2563eb;
+  --color-purple: #7c3aed;
+  --color-pink: #db2777;
+  --color-emerald: #059669;
+  --color-amber: #d97706;
+  --color-rose: #e11d48;
+
+  --text-primary: #16213a;
+  --text-secondary: #5a6783;
+  --text-muted: #94a3b8;
   
   --shadow-neon: none;
   --shadow-neon-rose: none;
@@ -36,18 +39,18 @@
   /* Raios — sistema consistente */
   --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-full: 999px;
 
-  /* Elevação — profundidade por sombra (não por borda neon) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 14px -4px rgba(0, 0, 0, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 18px 50px -12px rgba(0, 0, 0, 0.65);
+  /* Elevação — sombras suaves p/ profundidade no tema claro */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 14px -4px rgba(16, 24, 40, 0.1), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 18px 50px -12px rgba(16, 24, 40, 0.18);
 
-  /* Superfícies / acento único */
-  --bg-glass: rgba(18, 24, 36, 0.72);
-  --surface-hover: rgba(255, 255, 255, 0.04);
-  --accent: #06b6d4;
-  --accent-strong: #22d3ee;
-  --accent-contrast: #04141a;
-  --ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px rgba(34, 211, 238, 0.55);
+  /* Superfícies / acento VERDE */
+  --bg-glass: rgba(255, 255, 255, 0.82);
+  --surface-hover: rgba(15, 23, 42, 0.04);
+  --accent: #10b981;
+  --accent-strong: #34d399;
+  --accent-contrast: #ffffff;
+  --ring: 0 0 0 2px #ffffff, 0 0 0 4px rgba(16, 185, 129, 0.5);
 
   /* Escala tipográfica */
   --text-xs: 0.75rem; --text-sm: 0.8125rem; --text-base: 0.9375rem;
@@ -61,11 +64,10 @@
 }
 
 body {
-  background-color: #111827;
-  /* Superfície calma (padrão Linear/Vercel): um único brilho sutil no topo,
-     em vez de 3 gradientes concorrentes que poluíam o fundo. */
+  background-color: var(--bg-primary);
+  /* Tema claro: brilho verde sutil no topo sobre a base cinza-clara. */
   background-image:
-    radial-gradient(120% 80% at 50% -10%, rgba(34, 211, 238, 0.06) 0px, transparent 60%);
+    radial-gradient(120% 80% at 50% -10%, rgba(16, 185, 129, 0.06) 0px, transparent 60%);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
@@ -3298,3 +3300,65 @@ body {
   0% { transform: scale(0.55); opacity: 0.75; }
   100% { transform: scale(1.9); opacity: 0; }
 }
+
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║ TEMA CLARO — endurecimento (Sleek Enterprise / Modelo 1)             ║
+   ║ Sobrescreve as superfícies que ASSUMIAM fundo escuro (brancos com    ║
+   ║ alpha viram invisíveis no claro; fundos pretos viram ilhas escuras). ║
+   ╚══════════════════════════════════════════════════════════════════════╝ */
+
+/* Cards (KPIs, comandas, etc.): o .bento-item usava branco translúcido. */
+.bento-item {
+  background: var(--bg-card);
+  border-color: var(--border-thin);
+  box-shadow: var(--shadow-sm);
+}
+.bento-item:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 10px 26px -14px rgba(16, 185, 129, 0.45);
+}
+
+/* Botões neutros: branco com borda fina (Limpar Dados / Sair da referência).
+   IMPORTANTE: excluir as variantes coloridas — senão este override (que vem
+   DEPOIS no arquivo) clobberia o gradiente verde do .btn-primary etc. */
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary) {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary):hover {
+  background: #f5f7fb;
+  border-color: #cbd5e1;
+}
+.form-input:hover, .form-select:hover { border-color: #cbd5e1; }
+
+/* Kanban: coluna e contadores. */
+.kanban-column { background: #f7f9fc; }
+.kanban-col-count { background: rgba(15, 23, 42, 0.06); }
+.kanban-col-body { scrollbar-color: rgba(15, 23, 42, 0.18) transparent; }
+.kanban-col-body::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); }
+.kanban-col-body::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.3); }
+.kanban-card-valor { color: var(--text-primary); }
+.kanban-detalhe-close:hover { background: rgba(15, 23, 42, 0.05); }
+
+/* Botões de ação da comanda (pedido novo): Aceitar VERDE, recusar VERMELHO. */
+.kanban-btn-rose { background: var(--color-rose); color: #ffffff; }
+
+/* Bordas divisórias que eram brancas translúcidas (sumiam no claro). */
+.panel-header,
+.centro-ops-resumo-row { border-color: rgba(15, 23, 42, 0.08); }
+.node-stats { border-top-color: rgba(15, 23, 42, 0.08); }
+
+/* Superfícies de topologia/monitoramento que eram pretas. */
+.topology-container { background: rgba(15, 23, 42, 0.03); }
+.topology-node { background: #ffffff; box-shadow: var(--shadow-sm); }
+
+/* Console do operador (POD/telemetria): vira cartão claro — MAS o simulador de
+   celular dentro (phone-bezel/screen) continua escuro de propósito (é um device). */
+.operator-control-panel {
+  background-color: var(--bg-card);
+  border-color: var(--border-thin);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Centro de Operações: borda do painel volta ao verde suave sobre claro. */
+.centro-ops-panel { border-color: rgba(16, 185, 129, 0.28); }

@@ -201,8 +201,8 @@ export default function KanbanComandas({
         {/* Ações por etapa */}
         {col === 'novos' && (
           <div className="kanban-card-actions">
-            <button className="kanban-btn kanban-btn-amber" onClick={e => onPreparar(d.id, e)}>Aceitar e Preparar</button>
-            <button className="kanban-btn kanban-btn-ghost-rose" onClick={e => onCancelar(d.id, e)} title="Cancelar comanda">✕</button>
+            <button className="kanban-btn kanban-btn-emerald" onClick={e => onPreparar(d.id, e)}>Aceitar e Preparar</button>
+            <button className="kanban-btn kanban-btn-rose" onClick={e => onCancelar(d.id, e)} title="Cancelar comanda">✕</button>
           </div>
         )}
         {col === 'separacao' && (
