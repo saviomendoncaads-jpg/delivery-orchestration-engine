@@ -44,6 +44,36 @@ function LogoLoja({ loja }: { loja: LojaVitrine }) {
   );
 }
 
+// Comparação sem acentos/caixa para a busca (\p{M} = marcas diacríticas).
+function normalizarTexto(texto: string): string {
+  return texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+// Campo de busca por nome/descrição, acima da grade de produtos.
+function BuscaProdutos({ valor, onMudar }: { valor: string; onMudar: (v: string) => void }) {
+  return (
+    <div className="v-busca" role="search">
+      <svg className="v-busca-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        className="v-busca-input"
+        placeholder="Buscar medicamento ou produto…"
+        value={valor}
+        onChange={e => onMudar(e.target.value)}
+        aria-label="Buscar produto por nome"
+      />
+      {valor && (
+        <button type="button" className="v-busca-limpar" onClick={() => onMudar('')} aria-label="Limpar busca">
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Barra flutuante "Ver sacola" — só aparece no catálogo com itens na sacola.
 function BarraSacola({ onAbrir }: { onAbrir: () => void }) {
   const { totalItens, subtotal } = useCarrinho();
@@ -70,7 +100,32 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
     const arvore = categoriasDe(cardapio.produtos);
     return arvore.length > 0 ? { categoria: arvore[0].nome } : {};
   });
-  const produtosVisiveis = useMemo(() => filtrarPorCategoria(produtos, filtro), [produtos, filtro]);
+  // Busca por texto: pesquisa nome+descrição do cardápio INTEIRO (acentos
+  // ignorados). Busca e categoria são mutuamente exclusivas: digitar limpa o
+  // filtro de categoria; clicar numa categoria limpa a busca.
+  const [busca, setBusca] = useState('');
+  const termoBusca = normalizarTexto(busca.trim());
+
+  const produtosVisiveis = useMemo(() => {
+    if (termoBusca) {
+      return produtos.filter(
+        p =>
+          normalizarTexto(p.nome).includes(termoBusca) ||
+          (p.descricao && normalizarTexto(p.descricao).includes(termoBusca))
+      );
+    }
+    return filtrarPorCategoria(produtos, filtro);
+  }, [produtos, filtro, termoBusca]);
+
+  function aoBuscar(valor: string) {
+    setBusca(valor);
+    if (valor.trim() && filtro.categoria) setFiltro({});
+  }
+
+  function aoFiltrarCategoria(novo: FiltroCategoria) {
+    setBusca('');
+    setFiltro(novo);
+  }
 
   useEffect(() => {
     document.title = `${loja.nome} • Cardápio online`;
@@ -104,15 +159,31 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
           </div>
         )}
 
-        {tela === 'catalogo' &&
-          (categorias.length > 0 ? (
-            <div className="v-vitrine-layout">
-              <SidebarCategorias categorias={categorias} filtro={filtro} onFiltrar={setFiltro} />
-              <CatalogoProdutos produtos={produtosVisiveis} />
+        {tela === 'catalogo' && (
+          <div className={categorias.length > 0 ? 'v-vitrine-layout' : undefined}>
+            {categorias.length > 0 && (
+              <SidebarCategorias categorias={categorias} filtro={filtro} onFiltrar={aoFiltrarCategoria} />
+            )}
+            <div className="v-vitrine-conteudo">
+              {produtos.length > 0 && <BuscaProdutos valor={busca} onMudar={aoBuscar} />}
+              {termoBusca && produtosVisiveis.length === 0 ? (
+                <div className="v-estado-vazio">
+                  <span className="v-estado-vazio-icone" aria-hidden="true">🔍</span>
+                  <h2>Nada encontrado</h2>
+                  <p>
+                    Nenhum produto corresponde a <strong>“{busca.trim()}”</strong>. Confira a grafia ou
+                    navegue pelas categorias.
+                  </p>
+                  <button type="button" className="v-btn-secundario" onClick={() => setBusca('')}>
+                    Limpar busca
+                  </button>
+                </div>
+              ) : (
+                <CatalogoProdutos produtos={produtosVisiveis} />
+              )}
             </div>
-          ) : (
-            <CatalogoProdutos produtos={produtos} />
-          ))}
+          </div>
+        )}
 
         {tela === 'checkout' && (
           <CheckoutForm

@@ -298,6 +298,78 @@ body:has(.v-pagina) {
   font-weight: 600;
 }
 
+.v-vitrine-conteudo {
+  min-width: 0; /* impede a grade de estourar a coluna 1fr do grid */
+}
+
+/* ── Busca por nome/descrição ───────────────────────────────────────── */
+.v-busca {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.v-busca-icone {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--v-texto-3);
+  pointer-events: none;
+}
+
+.v-busca-input {
+  width: 100%;
+  font-family: var(--v-fonte-corpo);
+  font-size: 0.95rem;
+  color: var(--v-texto);
+  background: var(--v-card);
+  border: 1px solid var(--v-borda);
+  border-radius: 999px;
+  padding: 12px 44px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.v-busca-input::placeholder {
+  color: var(--v-texto-3);
+}
+
+.v-busca-input:focus {
+  border-color: var(--v-ambar);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
+}
+
+/* o botão × custom substitui o "cancel" nativo do input search */
+.v-busca-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.v-busca-limpar {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--v-card-alto);
+  color: var(--v-texto-2);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.v-busca-limpar:hover {
+  color: var(--v-texto);
+  background: var(--v-borda);
+}
+
 .v-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
