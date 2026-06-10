@@ -59,7 +59,7 @@ export function filtrarPorCategoria(produtos: ProdutoVitrine[], filtro: FiltroCa
 
 // Ícone por palavra-chave do nome (acentos ignorados): a loja nomeia livremente
 // e ainda ganha um ícone coerente; o fallback é uma etiqueta genérica.
-function IconeCategoria({ nome }: { nome: string }) {
+export function IconeCategoria({ nome }: { nome: string }) {
   const chave = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   let desenho: ReactNode;
   if (/medicament|remedio|farmac|generic|prescri/.test(chave)) {

@@ -3,6 +3,7 @@ import { CarrinhoProvider, useCarrinho } from './context/CarrinhoContext';
 import CatalogoProdutos from './components/CatalogoProdutos';
 import SidebarCategorias, { categoriasDe, filtrarPorCategoria } from './components/SidebarCategorias';
 import type { FiltroCategoria } from './components/SidebarCategorias';
+import CategoriasIlustradas from './components/CategoriasIlustradas';
 import CarrinhoDrawer from './components/CarrinhoDrawer';
 import CheckoutForm from './components/CheckoutForm';
 import PedidoConfirmado from './components/PedidoConfirmado';
@@ -164,6 +165,11 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
             )}
             <div className="v-vitrine-conteudo">
               {produtos.length > 0 && <BuscaProdutos valor={busca} onMudar={aoBuscar} />}
+              {/* Tiles ilustrados de categoria: atalho visual de alto impacto.
+                  Some durante a busca por texto para o foco ficar nos resultados. */}
+              {!termoBusca && categorias.length > 0 && (
+                <CategoriasIlustradas categorias={categorias} filtro={filtro} onFiltrar={aoFiltrarCategoria} />
+              )}
               {termoBusca && produtosVisiveis.length === 0 ? (
                 <div className="v-estado-vazio">
                   <span className="v-estado-vazio-icone" aria-hidden="true">🔍</span>

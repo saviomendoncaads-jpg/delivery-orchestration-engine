@@ -42,6 +42,11 @@ function CardProduto({ produto, indice }: { produto: ProdutoVitrine; indice: num
           <span className="v-card-preco">{formatarPreco(produto.preco)}</span>
           {quantidade === 0 ? (
             <button type="button" className="v-btn-adicionar" onClick={() => adicionar(produto)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="9" cy="20" r="1" />
+                <circle cx="18" cy="20" r="1" />
+                <path d="M2 3h2l2.4 12.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.2L21 7H5" />
+              </svg>
               Adicionar
             </button>
           ) : (
