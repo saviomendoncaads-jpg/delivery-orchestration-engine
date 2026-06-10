@@ -94,12 +94,10 @@ function ConteudoPainel({ cardapio }: { cardapio: CardapioResposta }) {
   const { loja, produtos } = cardapio;
 
   // Sidebar de categorias: a árvore vem dos produtos (configurada no painel da
-  // loja); a categoria com mais itens começa ativa, espelhando a referência.
+  // loja). O padrão é "Todos os Produtos" — o cliente vê o cardápio completo
+  // e refina por categoria se quiser.
   const categorias = useMemo(() => categoriasDe(produtos), [produtos]);
-  const [filtro, setFiltro] = useState<FiltroCategoria>(() => {
-    const arvore = categoriasDe(cardapio.produtos);
-    return arvore.length > 0 ? { categoria: arvore[0].nome } : {};
-  });
+  const [filtro, setFiltro] = useState<FiltroCategoria>({});
   // Busca por texto: pesquisa nome+descrição do cardápio INTEIRO (acentos
   // ignorados). Busca e categoria são mutuamente exclusivas: digitar limpa o
   // filtro de categoria; clicar numa categoria limpa a busca.

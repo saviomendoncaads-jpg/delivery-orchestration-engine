@@ -150,6 +150,32 @@ export default function SidebarCategorias({ categorias, filtro, onFiltrar }: Pro
     <aside className="v-sidebar">
       <nav aria-label="Categorias do cardápio">
         <ul className="v-sidebar-lista">
+          {/* Item fixo: cardápio completo (estado padrão da vitrine) */}
+          <li>
+            <button
+              type="button"
+              className={`v-sidebar-item${!filtro.categoria ? ' v-sidebar-item--ativo' : ''}`}
+              aria-current={!filtro.categoria ? 'true' : undefined}
+              onClick={() => onFiltrar({})}
+            >
+              <svg
+                className="v-sidebar-icone"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              </svg>
+              <span>Todos os Produtos</span>
+            </button>
+          </li>
           {visiveis.map(cat => {
             const ativa = filtro.categoria === cat.nome;
             return (
