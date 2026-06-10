@@ -357,66 +357,77 @@ body:has(.v-pagina) {
   text-decoration: underline;
 }
 
+/* Faixa horizontal rolável de tiles (igual à referência: cor cheia + rótulo). */
 .v-cat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  display: flex;
   gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
+.v-cat-grid::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tile de cor sólida vibrante: ilustração grande no topo, rótulo branco embaixo.
+   A cor vem inline via --v-tile-cor (mapeada por palavra-chave no componente). */
 .v-cat-tile {
   position: relative;
+  flex: 0 0 auto;
+  width: 132px;
+  aspect-ratio: 1 / 1.04;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 14px;
-  border: 1px solid var(--v-borda);
-  border-radius: var(--v-radius-lg);
-  background: var(--v-card);
+  padding: 14px 14px 13px;
+  border: none;
+  border-radius: 18px;
+  background: var(--v-tile-cor, #4285f4);
   cursor: pointer;
   text-align: left;
   overflow: hidden;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  scroll-snap-align: start;
+  box-shadow: 0 12px 22px -12px var(--v-tile-cor, #4285f4);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* Brilho suave no canto superior (dá o ar "3D/glossy" das ilustrações). */
+.v-cat-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.28) 0%, transparent 55%);
+  pointer-events: none;
 }
 
 .v-cat-tile:hover {
   transform: translateY(-3px);
-  box-shadow: var(--v-sombra);
+  box-shadow: 0 18px 30px -12px var(--v-tile-cor, #4285f4);
 }
 
 .v-cat-tile--ativo {
-  border-color: var(--v-menta);
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 0 3px #ffffff inset, 0 0 0 5px var(--v-tile-cor, #4285f4), 0 12px 22px -12px var(--v-tile-cor, #4285f4);
 }
 
-.v-cat-tile-icone {
+.v-cat-tile-emoji {
+  flex: 1;
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  color: #ffffff;
-  box-shadow: 0 8px 18px -8px var(--v-tile-sombra, rgba(37, 99, 235, 0.5));
-  background: linear-gradient(140deg, var(--v-tile-a, #60a5fa) 0%, var(--v-tile-b, #2563eb) 100%);
-}
-
-.v-cat-tile-icone svg {
-  width: 24px;
-  height: 24px;
+  font-size: 2.7rem;
+  line-height: 1;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.2));
 }
 
 .v-cat-tile-nome {
   font-family: var(--v-fonte-display);
   font-weight: 800;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   letter-spacing: -0.01em;
-  color: var(--v-texto);
-  line-height: 1.2;
-}
-
-.v-cat-tile-qtd {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--v-texto-3);
+  color: #ffffff;
+  line-height: 1.15;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
 }
 
 /* ── Busca por nome/descrição ───────────────────────────────────────── */
@@ -1428,8 +1439,15 @@ body:has(.v-pagina) {
   }
 
   .v-cat-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 10px;
+  }
+
+  .v-cat-tile {
+    width: 112px;
+  }
+
+  .v-cat-tile-emoji {
+    font-size: 2.3rem;
   }
 
   .v-grid {
