@@ -21,6 +21,11 @@ interface ComandaLite {
   dataHoraConclusao?: string;
   motorista?: { id: string; name: string };
   incidentes?: { resolvido: boolean }[];
+  valor?: number;
+  formaPagamento?: 'maquininha' | 'pix' | 'dinheiro';
+  referencia?: string;
+  bairro?: string;
+  cidade?: string;
 }
 
 interface DriverLite {
@@ -73,6 +78,20 @@ const corTimer: Record<'ok' | 'warn' | 'crit', string> = {
   crit: 'var(--color-rose)',
 };
 
+const PAGAMENTO_LABEL: Record<string, string> = {
+  maquininha: 'Cartão (maquininha)',
+  pix: 'PIX',
+  dinheiro: 'Dinheiro',
+};
+
+// Os itens chegam como "3x Nome do produto" (a vitrine pré-formata a string).
+// Separa a quantidade do nome para exibir um selo de qtd no detalhe — se não
+// casar o padrão, mostra a linha inteira com qtd 1 (defensivo).
+function parseItem(linha: string): { qtd: string; nome: string } {
+  const m = linha.match(/^(\d+)\s*x\s+(.*)$/i);
+  return m ? { qtd: m[1], nome: m[2] } : { qtd: '1', nome: linha };
+}
+
 type ColKey = 'novos' | 'separacao' | 'prontos' | 'rota' | 'finalizadas';
 
 interface ColDef {
@@ -98,6 +117,8 @@ export default function KanbanComandas({
   const [colAtiva, setColAtiva] = useState<ColKey>('novos');
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [driverEscolhido, setDriverEscolhido] = useState('');
+  // Detalhe da comanda (itens + qtd) para a loja conferir o estoque antes de aceitar.
+  const [detalhe, setDetalhe] = useState<ComandaLite | null>(null);
 
   // Distribui cada comanda na coluna certa (uma passada só).
   const porColuna = useMemo(() => {
@@ -126,9 +147,13 @@ export default function KanbanComandas({
   const renderCard = (d: ComandaLite, col: ColKey) => {
     const timer = tempoDecorrido(d.atualizadoEm || d.criadoEm);
     const temAlerta = d.status === 'ALERTA_INCIDENTE' || d.status === 'SLA_ALERTA';
+    // Pedidos (novos/separação): clicar abre o detalhe de itens p/ conferir estoque.
+    // Entregas (prontos/rota/finalizadas): mantém o painel de telemetria do operador.
+    const ehPedido = col === 'novos' || col === 'separacao';
+    const aoAbrir = () => (ehPedido ? setDetalhe(d) : onAbrirComanda(d.id));
     return (
       <BentoItem key={d.id} className="kanban-card" title="Abrir detalhes da comanda">
-        <div className="kanban-card-inner" onClick={() => onAbrirComanda(d.id)}>
+        <div className="kanban-card-inner" onClick={aoAbrir}>
           <div className="kanban-card-top">
             <div className="kanban-card-id">
               {col === 'prontos' && (
@@ -245,6 +270,83 @@ export default function KanbanComandas({
       <div className="kanban-board">
         {COLUNAS.map(renderColuna)}
       </div>
+
+      {/* Detalhe da comanda — itens e quantidades para a loja conferir o estoque */}
+      {detalhe && (
+        <div className="kanban-modal-overlay" onClick={() => setDetalhe(null)}>
+          <div className="kanban-modal kanban-modal--detalhe" onClick={e => e.stopPropagation()}>
+            <div className="kanban-detalhe-head">
+              <div>
+                <h3 className="kanban-modal-title">Conferir comanda</h3>
+                <span className="kanban-detalhe-id font-mono">{detalhe.id}</span>
+              </div>
+              <button className="kanban-detalhe-close" onClick={() => setDetalhe(null)} title="Fechar" aria-label="Fechar">✕</button>
+            </div>
+
+            <div className="kanban-detalhe-cliente">{detalhe.nomeCliente}</div>
+
+            <div className="kanban-modal-label">Itens do pedido ({detalhe.itens?.length || 0})</div>
+            <ul className="kanban-detalhe-itens">
+              {(detalhe.itens && detalhe.itens.length ? detalhe.itens : ['Sem itens informados']).map((linha, i) => {
+                const { qtd, nome } = parseItem(linha);
+                return (
+                  <li key={i} className="kanban-detalhe-item">
+                    <span className="kanban-detalhe-qtd">{qtd}×</span>
+                    <span className="kanban-detalhe-nome">{nome}</span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="kanban-detalhe-rodape">
+              <div className="kanban-detalhe-linha">
+                <span>Total</span>
+                <strong className="kanban-detalhe-total">R$ {getValor(detalhe).toFixed(2)}</strong>
+              </div>
+              {detalhe.formaPagamento && (
+                <div className="kanban-detalhe-linha">
+                  <span>Pagamento</span>
+                  <span>{PAGAMENTO_LABEL[detalhe.formaPagamento] || detalhe.formaPagamento}</span>
+                </div>
+              )}
+              {detalhe.endereco && (
+                <div className="kanban-detalhe-linha kanban-detalhe-linha--col">
+                  <span>Entrega</span>
+                  <span className="kanban-detalhe-endereco">{detalhe.endereco}</span>
+                </div>
+              )}
+              {detalhe.referencia && (
+                <div className="kanban-detalhe-obs">
+                  {detalhe.referencia.split(' | ').map((parte, i) => (
+                    <span key={i} className="kanban-detalhe-obs-chip">{parte}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Aceitar direto do detalhe quando for pedido novo, sem precisar fechar antes */}
+            <div className="kanban-modal-actions">
+              <button className="kanban-btn kanban-btn-ghost" onClick={() => setDetalhe(null)}>Fechar</button>
+              {detalhe.status === 'RECEBIDO' && detalhe.tipoComanda === 'pedido' && (
+                <button
+                  className="kanban-btn kanban-btn-amber"
+                  onClick={e => { onPreparar(detalhe.id, e); setDetalhe(null); }}
+                >
+                  Aceitar e Preparar
+                </button>
+              )}
+              {detalhe.status === 'EM_PREPARO' && detalhe.tipoComanda === 'pedido' && (
+                <button
+                  className="kanban-btn kanban-btn-emerald"
+                  onClick={e => { onFinalizar(detalhe.id, e); setDetalhe(null); }}
+                >
+                  Concluir Separação
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal enxuto de despacho — escolhe o entregador e gera o romaneio */}
       {dispatchOpen && (

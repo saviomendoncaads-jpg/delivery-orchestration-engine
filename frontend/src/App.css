@@ -3091,6 +3091,45 @@ body {
 .kanban-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.1rem; }
 .kanban-modal-actions .kanban-btn { padding: 0.55rem; }
 
+/* Detalhe da comanda (itens + qtd para conferência de estoque) */
+.kanban-modal--detalhe { max-width: 420px; }
+.kanban-detalhe-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.kanban-detalhe-id { font-size: 0.7rem; color: var(--color-cyan); }
+.kanban-detalhe-close {
+  background: transparent; border: none; color: var(--text-secondary); cursor: pointer;
+  font-size: 0.9rem; line-height: 1; padding: 0.2rem; border-radius: 6px;
+}
+.kanban-detalhe-close:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.05); }
+.kanban-detalhe-cliente { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); margin: 0.2rem 0 0.9rem; }
+.kanban-detalhe-itens {
+  list-style: none; margin: 0.3rem 0 0; padding: 0;
+  border: 1px solid var(--border-thin); border-radius: 10px; overflow: hidden;
+  max-height: 40vh; overflow-y: auto;
+}
+.kanban-detalhe-item {
+  display: flex; align-items: baseline; gap: 0.6rem; padding: 0.55rem 0.7rem;
+  font-size: 0.8rem; color: var(--text-primary);
+}
+.kanban-detalhe-item + .kanban-detalhe-item { border-top: 1px solid var(--border-thin); }
+.kanban-detalhe-qtd {
+  flex-shrink: 0; min-width: 2rem; text-align: center; font-weight: 800; font-size: 0.78rem;
+  color: var(--color-amber); background: rgba(245, 158, 11, 0.1); border-radius: 6px; padding: 0.1rem 0.3rem;
+}
+.kanban-detalhe-nome { flex: 1; }
+.kanban-detalhe-rodape { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.kanban-detalhe-linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem;
+  font-size: 0.76rem; color: var(--text-secondary);
+}
+.kanban-detalhe-linha--col { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.kanban-detalhe-total { font-size: 0.95rem; color: var(--color-cyan); }
+.kanban-detalhe-endereco { color: var(--text-primary); font-size: 0.74rem; line-height: 1.35; }
+.kanban-detalhe-obs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
+.kanban-detalhe-obs-chip {
+  font-size: 0.66rem; color: var(--text-secondary); background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-thin); border-radius: 999px; padding: 0.15rem 0.55rem;
+}
+
 /* Tablet: scroll horizontal com snap das colunas */
 @media (max-width: 1200px) and (min-width: 641px) {
   .kanban-board { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; }
