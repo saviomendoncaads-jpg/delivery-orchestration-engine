@@ -3360,5 +3360,20 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Centro de Operações: borda do painel volta ao verde suave sobre claro. */
-.centro-ops-panel { border-color: rgba(16, 185, 129, 0.28); }
+/* Centro de Operações em AZUL-CIANO (e não no verde do resto do painel).
+   Truque: remapeia --color-emerald SÓ neste subtree — como os acentos do painel
+   (SLA, donut, Faturamento, dot/texto "Ao vivo") usam var(--color-emerald)
+   inline, todos viram ciano de uma vez. O resto do dashboard segue verde. */
+.centro-ops-panel {
+  --color-emerald: #06b6d4;
+  border-color: rgba(6, 182, 212, 0.3);
+}
+/* Halo pulsante do "Ao vivo" em ciano (o keyframe global usava verde fixo). */
+.centro-ops-panel .centro-ops-live-dot {
+  animation: centro-ops-pulse-cyan 1.8s ease-out infinite;
+}
+@keyframes centro-ops-pulse-cyan {
+  0%   { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+}
