@@ -120,18 +120,23 @@ body:has(.v-pagina) {
 }
 
 .v-header-local {
-  font-size: 0.8rem;
-  color: var(--v-texto-2);
+  margin-top: 2px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #bac3d8; /* mais claro que --v-texto-2: localização legível no vidro escuro */
 }
 
 .v-chip-aberto,
 .v-chip-fechado {
   display: inline-flex;
   align-items: center;
+  align-self: center;
+  flex-shrink: 0;
   gap: 8px;
   font-size: 0.78rem;
   font-weight: 600;
-  padding: 6px 12px;
+  line-height: 1;
+  padding: 7px 13px;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -186,6 +191,7 @@ body:has(.v-pagina) {
 .v-card {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--v-card);
   border: 1px solid var(--v-borda);
   border-radius: var(--v-radius-lg);
@@ -206,22 +212,27 @@ body:has(.v-pagina) {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Fundo branco proposital: fotos de produto farma vêm com fundo branco;
+   o bloco claro com respiro interno evita o "recorte flutuando" no dark. */
 .v-card-foto {
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  background: var(--v-card-alto);
+  padding: 16px;
+  background: #ffffff;
+  border-radius: var(--v-radius-lg) var(--v-radius-lg) 0 0;
+  border-bottom: 1px solid var(--v-borda);
 }
 
 .v-card-foto img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   transition: transform 0.35s ease;
 }
 
 .v-card:hover .v-card-foto img {
-  transform: scale(1.05);
+  transform: scale(1.04);
 }
 
 .v-card-foto--placeholder {
@@ -259,6 +270,7 @@ body:has(.v-pagina) {
   color: var(--v-texto-2);
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -272,11 +284,13 @@ body:has(.v-pagina) {
   gap: 10px;
 }
 
+/* Preço em branco: o âmbar fica exclusivo do CTA para não disputar atenção */
 .v-card-preco {
   font-family: var(--v-fonte-display);
   font-weight: 800;
-  font-size: 1.05rem;
-  color: var(--v-ambar);
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  color: var(--v-texto);
 }
 
 /* ── Botões ─────────────────────────────────────────────────────────── */
@@ -299,9 +313,9 @@ body:has(.v-pagina) {
 
 .v-btn-adicionar:hover,
 .v-btn-primario:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.03);
   box-shadow: 0 8px 20px -8px rgba(245, 158, 11, 0.6);
-  filter: brightness(1.05);
+  filter: brightness(1.08);
 }
 
 .v-btn-primario {
@@ -1044,8 +1058,10 @@ body:has(.v-pagina) {
     aspect-ratio: auto;
     width: 108px;
     flex-shrink: 0;
+    padding: 10px;
     border-radius: var(--v-radius);
-    margin: 12px 12px 12px 0;
+    border-bottom: none;
+    margin: 12px;
     overflow: hidden;
   }
 
