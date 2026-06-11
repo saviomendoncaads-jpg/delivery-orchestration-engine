@@ -3380,3 +3380,22 @@ body {
 /* Divisórias/detalhes que ficam claros voltam a ser brancos-translúcidos no escuro. */
 .centro-ops-panel .centro-ops-resumo-row { border-color: rgba(255, 255, 255, 0.06); }
 .centro-ops-panel .centro-ops-zone { border-color: rgba(255, 255, 255, 0.14); }
+
+/* Cabeçalho ESCURO (como antes), casando com o Centro de Operações. Mesmo
+   truque: re-escopa os tokens escuros só no .app-header. */
+.app-header {
+  --bg-glass: rgba(18, 24, 36, 0.82);
+  --bg-card: #141b27;
+  --bg-secondary: #0d131f;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 14px 34px -16px rgba(2, 6, 23, 0.5);
+}
+/* Hover dos botões neutros do header volta ao estilo escuro (o global é claro). */
+.app-header .btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary):hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: #2b3850;
+}
