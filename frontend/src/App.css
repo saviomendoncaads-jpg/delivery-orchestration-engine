@@ -1,25 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Nunito:wght@400;600;700;800;900&display=swap');
 
 :root {
-  --bg-primary: #090d16;
-  --bg-secondary: #0d131f;
-  --bg-card: #141b27;
-  --border-thin: #1f293d;
-  --border-glass: #1f293d;
-  --border-glow: rgba(0, 242, 254, 0.1);
-  
+  /* === TEMA CLARO "Sleek Enterprise" (Modelo 1) ===
+     Base white-on-grey, acento VERDE (ação primária/SLA). As cores de sistema
+     foram escurecidas o suficiente p/ contraste legível sobre branco. */
+  --bg-primary: #eef2f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --border-thin: #e4e9f2;
+  --border-glass: #e4e9f2;
+  --border-glow: rgba(16, 185, 129, 0.14);
+
   /* System Colors */
-  --color-cyan: #06b6d4;
-  --color-blue: #3b82f6;
-  --color-purple: #8b5cf6;
-  --color-pink: #ec4899;
-  --color-emerald: #10b981;
-  --color-amber: #f59e0b;
-  --color-rose: #f43f5e;
-  
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #4b5563;
+  --color-cyan: #0e9aae;
+  --color-blue: #2563eb;
+  --color-purple: #7c3aed;
+  --color-pink: #db2777;
+  --color-emerald: #059669;
+  --color-amber: #d97706;
+  --color-rose: #e11d48;
+
+  --text-primary: #16213a;
+  --text-secondary: #5a6783;
+  --text-muted: #94a3b8;
   
   --shadow-neon: none;
   --shadow-neon-rose: none;
@@ -27,6 +30,31 @@
   
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* ===== Design tokens (UI/UX refactor) ===== */
+  /* Espaçamento — escala 4/8pt */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+
+  /* Raios — sistema consistente */
+  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-full: 999px;
+
+  /* Elevação — sombras suaves p/ profundidade no tema claro */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 14px -4px rgba(16, 24, 40, 0.1), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 18px 50px -12px rgba(16, 24, 40, 0.18);
+
+  /* Superfícies / acento VERDE */
+  --bg-glass: rgba(255, 255, 255, 0.82);
+  --surface-hover: rgba(15, 23, 42, 0.04);
+  --accent: #10b981;
+  --accent-strong: #34d399;
+  --accent-contrast: #ffffff;
+  --ring: 0 0 0 2px #ffffff, 0 0 0 4px rgba(16, 185, 129, 0.5);
+
+  /* Escala tipográfica */
+  --text-xs: 0.75rem; --text-sm: 0.8125rem; --text-base: 0.9375rem;
+  --text-lg: 1.125rem; --text-xl: 1.375rem; --text-2xl: 1.75rem;
 }
 
 * {
@@ -37,15 +65,17 @@
 
 body {
   background-color: var(--bg-primary);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
-    radial-gradient(at 50% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.05) 0px, transparent 50%);
+  /* Tema claro: brilho verde sutil no topo sobre a base cinza-clara. */
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, rgba(16, 185, 129, 0.06) 0px, transparent 60%);
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-sans);
   min-height: 100vh;
   overflow-x: hidden;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* App Container */
@@ -64,12 +94,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 2rem;
+  padding: var(--space-4) var(--space-6);
   background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--border-thin);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: var(--space-3);
+  z-index: 50;
 }
 
 .logo-section {
@@ -81,24 +115,22 @@ body {
 .logo-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, var(--color-cyan), var(--color-blue));
-  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 1.25rem;
-  color: #000;
-  box-shadow: var(--shadow-neon);
-  animation: pulse-glow 2s infinite alternate;
+  color: var(--accent-contrast);
+  box-shadow: 0 4px 12px -2px rgba(34, 211, 238, 0.35);
 }
 
 .logo-section h1 {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 700;
-  background: linear-gradient(to right, #ffffff, #a5b4fc, var(--color-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
 }
 
 .logo-section span {
@@ -165,12 +197,12 @@ body {
 .glass-panel {
   background: var(--bg-secondary);
   border: 1px solid var(--border-thin);
-  border-radius: 8px;
-  padding: 1.25rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .glass-panel.glow-cyan {
@@ -344,58 +376,63 @@ body {
 .form-input, .form-select {
   background: var(--bg-card);
   border: 1px solid var(--border-thin);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  min-height: 40px; /* alvo de toque confortável (Lei de Fitts) */
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
+  font-size: var(--text-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   width: 100%;
 }
 
+.form-input::placeholder, .form-select::placeholder { color: var(--text-muted); }
+
+.form-input:hover, .form-select:hover { border-color: #2b3850; }
+
 .form-input:focus, .form-select:focus {
   outline: none;
-  border-color: var(--color-cyan);
-  box-shadow: 0 0 0 1px var(--color-cyan);
+  border-color: var(--accent-strong);
+  box-shadow: var(--ring); /* anel de foco 2px acessível p/ teclado */
 }
 
 /* Buttons */
 .btn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-thin);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  padding: 0.4rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 500;
+  padding: 0 var(--space-4);
+  min-height: 38px;
+  font-size: var(--text-sm);
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
   font-family: var(--font-sans);
+  white-space: nowrap;
 }
 
-.btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: none;
-}
-
-.btn:active {
-  transform: none;
-}
+.btn:hover { background: rgba(255, 255, 255, 0.09); border-color: #2b3850; }
+.btn:active { transform: translateY(1px); } /* feedback tátil de clique */
+.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
-  background: #0891b2;
-  border: none;
-  color: #ffffff;
-  box-shadow: none;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  border: 1px solid transparent;
+  color: var(--accent-contrast);
+  font-weight: 700;
+  box-shadow: 0 2px 8px -2px rgba(34, 211, 238, 0.45);
 }
 
 .btn-primary:hover {
-  background: #0e7490;
-  box-shadow: none;
+  background: linear-gradient(180deg, #38dcee, #0aa9c4);
+  border-color: transparent;
+  box-shadow: 0 4px 14px -2px rgba(34, 211, 238, 0.55);
 }
 
 .btn-danger {
@@ -421,9 +458,10 @@ body {
 }
 
 .btn-small {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-  border-radius: 6px;
+  padding: 0 var(--space-3);
+  min-height: 30px; /* compacto p/ tabelas densas; não herda os 38px do .btn */
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
 }
 
 .btn-secondary {
@@ -518,47 +556,94 @@ body {
   pointer-events: none;
 }
 
+/* Marcador da LOJA (hub) — badge branco com ícone de loja e NOME logo acima */
 .map-city-hub {
   position: absolute;
-  left: 10%;
-  top: 10%;
+  width: 36px;
+  height: 36px;
+  background: #ffffff;
+  border: 3px solid #2563eb;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.35);
+}
+
+.map-city-hub svg { display: block; }
+
+.map-city-hub::after {
+  content: var(--hub-name, 'Loja');
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Nunito', var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  color: #15233b;
+  background: #ffffff;
+  padding: 0.16rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.25);
+}
+
+.map-city-hub::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #ffffff;
+}
+
+/* Marcador de DESTINO — bolinha com anel branco; realça quando a comanda é selecionada */
+.map-destination {
+  position: absolute;
   width: 16px;
   height: 16px;
-  background: var(--color-cyan);
+  background: #7c3aed;
   border: 3px solid #fff;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10;
-  box-shadow: var(--shadow-neon);
+  z-index: 14;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.45);
 }
 
-.map-city-hub::after {
-  content: var(--hub-name, 'CD Central');
+.map-destination.arrived { background: #16a34a; }
+
+.map-destination.selected {
+  width: 22px;
+  height: 22px;
+  background: #1a73e8;
+  z-index: 16;
+  box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.25), 0 3px 8px rgba(15, 23, 42, 0.5);
+}
+
+.dest-label {
   position: absolute;
-  top: 18px;
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.65rem;
-  font-weight: 700;
+  display: none;
+  font-family: 'Nunito', var(--font-sans);
+  font-size: 0.62rem;
+  font-weight: 800;
   white-space: nowrap;
-  background: rgba(0,0,0,0.8);
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-  border: 1px solid rgba(0,242,254,0.3);
-  color: var(--color-cyan);
+  color: #fff;
+  background: #1a73e8;
+  padding: 0.08rem 0.34rem;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
 }
 
-.map-destination {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  background: var(--color-purple);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  box-shadow: 0 0 10px var(--color-purple);
-}
+.map-destination.selected .dest-label { display: block; }
 
 /* Vehicles moving on map */
 .map-vehicle {
@@ -566,8 +651,9 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #111827;
-  border: 2px solid var(--color-cyan);
+  background: #1f2937;
+  color: #fff;
+  border: 3px solid #1a73e8;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -576,7 +662,7 @@ body {
   cursor: pointer;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   font-size: 1.1rem;
-  box-shadow: var(--shadow-neon);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.45);
 }
 
 .map-vehicle.selected {
@@ -724,23 +810,50 @@ body {
 .delivery-item-card {
   background: var(--bg-card);
   border: 1px solid var(--border-thin);
-  border-radius: 6px;
-  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-sm);
+  /* Faixa de status na borda esquerda (leitura glanceável em painel operacional) */
+  border-left: 3px solid var(--border-thin);
 }
 
 .delivery-item-card:hover {
-  background: rgba(255, 255, 255, 0.01);
-  border-color: var(--color-cyan);
+  background: var(--surface-hover);
+  border-color: #2b3850;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .delivery-item-card.selected {
-  background: rgba(6, 182, 212, 0.02);
-  border-color: var(--color-cyan);
+  background: rgba(6, 182, 212, 0.06);
+  border-color: var(--accent);
+  border-left-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+/* Card de motorista (Frota) */
+.driver-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border-thin);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.driver-card:hover {
+  border-color: #2b3850;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .comandas-section-title {
@@ -1636,12 +1749,12 @@ body {
 .report-modal-content {
   background: var(--bg-secondary);
   border: 1px solid var(--border-thin);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   width: 100%;
   max-width: 850px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1746,8 +1859,8 @@ body {
 .report-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 @media (max-width: 640px) {
@@ -1759,29 +1872,37 @@ body {
 .report-kpi-card {
   background: var(--bg-card);
   border: 1px solid var(--border-thin);
-  border-radius: 10px;
-  padding: 1rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  transition: border-color 0.2s ease;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .report-kpi-card:hover {
-  border-color: rgba(6, 182, 212, 0.3);
+  transform: translateY(-2px);
+  border-color: #2b3850;
+  box-shadow: var(--shadow-md);
 }
 
 .report-kpi-card .kpi-label {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .report-kpi-card .kpi-value {
-  font-size: 1.4rem;
+  font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: var(--space-1) 0;
 }
 
 /* Spinner */
@@ -1852,20 +1973,20 @@ body {
   align-items: center;
   min-height: 100vh;
   padding: 2rem;
-  background-color: var(--bg-primary);
-  background-image: 
-    radial-gradient(at 10% 10%, rgba(6, 182, 212, 0.1) 0px, transparent 50%),
-    radial-gradient(at 90% 90%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+  background-color: #023524;
+  background-image:
+    radial-gradient(62vw 46vh at 50% -8%, rgba(37, 99, 235, 0.13) 0px, transparent 62%),
+    radial-gradient(150% 100% at 50% -10%, transparent 56%, rgba(3, 7, 18, 0.6) 100%);
 }
 
 .login-card {
   width: 100%;
   max-width: 440px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-thin);
+  background: linear-gradient(180deg, #111b2e, #0b1322);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: 20px;
-  padding: 2.5rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(6, 182, 212, 0.05);
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 50px 150px -40px rgba(0, 0, 0, 0.92), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -1879,64 +2000,79 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-cyan), var(--color-purple));
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.55), transparent);
 }
 
 .login-logo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   text-align: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
-.login-logo .logo-icon {
-  width: 50px;
-  height: 50px;
-  font-size: 1.5rem;
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.login-logo h2 {
-  font-size: 1.8rem;
+.login-mark {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 6px 16px rgba(37, 99, 235, 0.35));
+}
+
+.login-word {
   font-weight: 800;
-  background: linear-gradient(to right, #fff, #cbd5e1, var(--color-cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 1.7rem;
+  letter-spacing: 0.16em;
+  color: #fff;
+  line-height: 1;
 }
 
 .login-logo p {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  font-size: 0.82rem;
+  color: #94a3b8;
+  letter-spacing: 0.01em;
 }
 
 .login-tabs {
   display: flex;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-thin);
-  border-radius: 8px;
-  padding: 0.25rem;
+  gap: 4px;
+  background: rgba(3, 7, 18, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.09);
+  border-radius: 12px;
+  padding: 4px;
 }
 
 .login-tab {
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
+  color: #94a3b8;
+  padding: 0.55rem 1rem;
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
   cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  border-radius: 9px;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   text-align: center;
 }
 
+.login-tab:hover {
+  color: #fff;
+}
+
 .login-tab.active {
-  background: var(--bg-primary);
-  color: var(--color-cyan);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  background: rgba(148, 163, 184, 0.10);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .login-form {
@@ -1945,20 +2081,60 @@ body {
   gap: 1rem;
 }
 
+.login-form .form-group label {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.login-form .form-input {
+  background: rgba(3, 7, 18, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+  color: #fff;
+  font-family: var(--font-sans);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.login-form .form-input::placeholder {
+  color: #64748b;
+}
+
+.login-form .form-input:hover {
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.login-form .form-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  outline: none;
+}
+
 .login-btn {
-  background: linear-gradient(90deg, var(--color-cyan), var(--color-blue));
-  color: #000;
-  border: none;
-  padding: 0.75rem;
-  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid transparent;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
   font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.2s ease;
+  box-shadow: 0 24px 70px -22px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 0.15s cubic-bezier(.16, 1, .3, 1), background 0.2s ease, box-shadow 0.25s ease;
+  margin-top: 0.25rem;
 }
 
 .login-btn:hover {
-  filter: brightness(1.2);
-  box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+  background: #3b76f0;
+  transform: translateY(-1px);
+}
+
+.login-btn:active {
+  transform: translateY(1px) scale(0.99);
 }
 
 .login-error {
@@ -1998,11 +2174,19 @@ body {
 .admin-stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border-thin);
-  border-radius: 12px;
-  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-1);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: #2b3850;
+  box-shadow: var(--shadow-md);
 }
 
 .admin-stat-label {
@@ -2027,9 +2211,15 @@ body {
 .empresa-card {
   background: var(--bg-card);
   border: 1px solid var(--border-thin);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.empresa-card:hover {
+  border-color: #2b3850;
+  box-shadow: var(--shadow-md);
 }
 
 .empresa-card-header {
@@ -2570,3 +2760,667 @@ body {
   background: #374151;
   box-shadow: none;
 }
+
+/* ===================== Centro de Operações (painel ao vivo) ===================== */
+.centro-ops-panel {
+  margin-bottom: 1.25rem;
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.centro-ops-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.centro-ops-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.centro-ops-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-emerald);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: centro-ops-pulse 1.8s ease-out infinite;
+}
+
+@keyframes centro-ops-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.centro-ops-zone {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-thin);
+  border-radius: 5px;
+  padding: 0.15rem 0.5rem;
+  text-transform: none;
+}
+
+.centro-ops-live {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-emerald);
+  font-variant-numeric: tabular-nums;
+}
+
+.centro-ops {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+}
+
+.centro-ops-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: min-content;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+.centro-ops-kpi {
+  /* superfície/borda vêm do .bento-item (glow interativo) */
+  padding: 0.85rem 0.9rem;
+}
+
+.centro-ops-kpi .label {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.centro-ops-kpi .value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.centro-ops-kpi .sub {
+  font-size: 0.64rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.centro-ops-gauge {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.7rem;
+}
+
+.centro-ops-resumo {
+  padding: 0.85rem 1.1rem 0.7rem;
+}
+
+.centro-ops-feed-title {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.centro-ops-resumo-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.42rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.centro-ops-resumo-row:last-child { border-bottom: none; }
+
+.centro-ops-resumo-label {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.centro-ops-resumo-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.centro-ops-resumo-value small {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .centro-ops { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 520px) {
+  .centro-ops-kpis { grid-template-columns: repeat(2, 1fr); }
+  .centro-ops-kpi .value { font-size: 1.4rem; }
+}
+
+/* ===================== Cybernetic Bento (glow interativo on-brand) ===================== */
+.bento-grid { display: grid; gap: 0.7rem; }
+
+.bento-item {
+  position: relative;
+  border-radius: 12px;
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.008));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: border-color 0.35s ease, transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+/* Spotlight que segue o cursor — a alma "cibernética", na cor da marca */
+.bento-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    300px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(16, 185, 129, 0.20),
+    rgba(6, 182, 212, 0.08) 40%,
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.bento-item:hover::before { opacity: 1; }
+
+.bento-item:hover {
+  border-color: rgba(16, 185, 129, 0.32);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -14px rgba(16, 185, 129, 0.4);
+}
+
+/* Fio de luz no topo — detalhe tech, abre no hover */
+.bento-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+  opacity: 0.4;
+  transition: opacity 0.4s ease, left 0.4s ease, right 0.4s ease;
+  pointer-events: none;
+}
+.bento-item:hover::after { opacity: 0.9; left: 5%; right: 5%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bento-item, .bento-item::before, .bento-item::after { transition: none; }
+  .bento-item:hover { transform: none; }
+}
+
+/* ===================== Kanban de Controle de Comandas ===================== */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--border-thin);
+  border-radius: 12px;
+  padding: 0.6rem 0.55rem;
+  max-height: 640px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0.3rem 0.6rem;
+}
+.kanban-col-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.kanban-col-title {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kanban-col-count {
+  margin-left: auto; font-size: 0.68rem; font-weight: 700; color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06); border-radius: 20px; padding: 0.05rem 0.45rem;
+  min-width: 20px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.kanban-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  overflow-y: auto;
+  /* CAP por coluna: a barra de rolagem aparece e o board NÃO cresce sem limite
+     (assim o mapa/monitoramento logo abaixo não é empurrado pra baixo). */
+  max-height: 26rem;
+  padding: 0.15rem 0.4rem 0.3rem 0.15rem;
+  min-height: 40px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+.kanban-col-body::-webkit-scrollbar { width: 7px; }
+.kanban-col-body::-webkit-scrollbar-track { background: transparent; }
+.kanban-col-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 4px; }
+.kanban-col-body::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
+.kanban-empty { font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 1.1rem 0; }
+
+.kanban-dispatch-btn {
+  width: 100%; font-size: 0.68rem; font-weight: 700; padding: 0.45rem; border-radius: 7px;
+  border: 1px solid rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.12); color: var(--color-cyan);
+  cursor: pointer; margin-bottom: 0.55rem; transition: background 0.15s ease;
+}
+.kanban-dispatch-btn:hover:not(:disabled) { background: rgba(6, 182, 212, 0.22); }
+.kanban-dispatch-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Card (a superfície/borda/glow vêm do .bento-item) */
+/* flex: 0 0 auto = não encolher: mantém a altura natural e força o overflow/scroll do corpo. */
+.kanban-card { padding: 0; flex: 0 0 auto; }
+.kanban-card-inner { padding: 0.6rem 0.65rem 0.5rem; cursor: pointer; }
+.kanban-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; margin-bottom: 0.35rem; }
+.kanban-card-id { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.kanban-card-id .card-id { font-size: 0.72rem; }
+.kanban-check { width: 14px; height: 14px; accent-color: var(--color-cyan); cursor: pointer; flex: none; }
+.kanban-card-timer { display: inline-flex; align-items: center; gap: 0.22rem; font-size: 0.62rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: none; }
+.kanban-card-body { display: flex; flex-direction: column; gap: 0.15rem; }
+.kanban-card-cliente { font-size: 0.76rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kanban-card-itens { font-size: 0.66rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kanban-card-meta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.kanban-card-valor { font-size: 0.7rem; font-weight: 700; color: var(--color-cyan); }
+.kanban-card-motoboy { font-size: 0.64rem; color: var(--text-secondary); }
+.kanban-card-alerta { font-size: 0.6rem; font-weight: 700; color: var(--color-rose); }
+.kanban-card-actions { display: flex; gap: 0.35rem; padding: 0 0.65rem 0.6rem; }
+
+.kanban-btn {
+  flex: 1; font-size: 0.67rem; font-weight: 700; padding: 0.4rem 0.5rem; border-radius: 6px;
+  border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+.kanban-btn:hover { filter: brightness(1.08); }
+.kanban-btn-amber { background: var(--color-amber); color: #000; }
+.kanban-btn-emerald { background: var(--color-emerald); color: #04150e; }
+.kanban-btn-emerald-soft { background: rgba(16, 185, 129, 0.12); color: var(--color-emerald); border-color: rgba(16, 185, 129, 0.3); }
+.kanban-btn-amber-soft { background: rgba(245, 158, 11, 0.1); color: var(--color-amber); border-color: rgba(245, 158, 11, 0.3); }
+.kanban-btn-ghost-rose { flex: none; width: 32px; background: transparent; color: var(--color-rose); border-color: rgba(244, 63, 94, 0.4); }
+.kanban-btn-ghost { background: transparent; color: var(--text-secondary); border-color: var(--border-thin); }
+.kanban-btn-cyan { background: var(--color-cyan); color: #04141a; }
+
+/* Abas (mobile) */
+.kanban-tabs { display: none; gap: 0.3rem; overflow-x: auto; margin-bottom: 0.6rem; padding-bottom: 0.3rem; }
+.kanban-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.66rem; font-weight: 700;
+  white-space: nowrap; padding: 0.35rem 0.6rem; border-radius: 20px; border: 1px solid var(--border-thin);
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+}
+.kanban-tab.active { border-color: rgba(6, 182, 212, 0.5); color: var(--text-primary); background: rgba(6, 182, 212, 0.08); }
+
+/* Modal de despacho */
+.kanban-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+}
+.kanban-modal {
+  width: 100%; max-width: 380px; background: var(--bg-card); border: 1px solid var(--border-thin);
+  border-radius: 14px; padding: 1.2rem; box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+}
+.kanban-modal-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.3rem; }
+.kanban-modal-sub { font-size: 0.74rem; color: var(--text-secondary); margin: 0 0 1rem; }
+.kanban-modal-label { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); display: block; margin-bottom: 0.3rem; }
+.kanban-modal-actions { display: flex; gap: 0.5rem; margin-top: 1.1rem; }
+.kanban-modal-actions .kanban-btn { padding: 0.55rem; }
+
+/* Detalhe da comanda (itens + qtd para conferência de estoque) */
+.kanban-modal--detalhe { max-width: 420px; }
+.kanban-detalhe-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.kanban-detalhe-id { font-size: 0.7rem; color: var(--color-cyan); }
+.kanban-detalhe-close {
+  background: transparent; border: none; color: var(--text-secondary); cursor: pointer;
+  font-size: 0.9rem; line-height: 1; padding: 0.2rem; border-radius: 6px;
+}
+.kanban-detalhe-close:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.05); }
+.kanban-detalhe-cliente { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); margin: 0.2rem 0 0.9rem; }
+.kanban-detalhe-itens {
+  list-style: none; margin: 0.3rem 0 0; padding: 0;
+  border: 1px solid var(--border-thin); border-radius: 10px; overflow: hidden;
+  max-height: 40vh; overflow-y: auto;
+}
+.kanban-detalhe-item {
+  display: flex; align-items: baseline; gap: 0.6rem; padding: 0.55rem 0.7rem;
+  font-size: 0.8rem; color: var(--text-primary);
+}
+.kanban-detalhe-item + .kanban-detalhe-item { border-top: 1px solid var(--border-thin); }
+.kanban-detalhe-qtd {
+  flex-shrink: 0; min-width: 2rem; text-align: center; font-weight: 800; font-size: 0.78rem;
+  color: var(--color-amber); background: rgba(245, 158, 11, 0.1); border-radius: 6px; padding: 0.1rem 0.3rem;
+}
+.kanban-detalhe-nome { flex: 1; }
+.kanban-detalhe-rodape { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.45rem; }
+.kanban-detalhe-linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem;
+  font-size: 0.76rem; color: var(--text-secondary);
+}
+.kanban-detalhe-linha--col { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.kanban-detalhe-total { font-size: 0.95rem; color: var(--color-cyan); }
+.kanban-detalhe-endereco { color: var(--text-primary); font-size: 0.74rem; line-height: 1.35; }
+.kanban-detalhe-obs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
+.kanban-detalhe-obs-chip {
+  font-size: 0.66rem; color: var(--text-secondary); background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-thin); border-radius: 999px; padding: 0.15rem 0.55rem;
+}
+
+/* Tablet: scroll horizontal com snap das colunas */
+@media (max-width: 1200px) and (min-width: 641px) {
+  .kanban-board { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; }
+  .kanban-column { flex: 0 0 300px; scroll-snap-align: start; max-height: none; }
+}
+
+/* Mobile: abas navegáveis (uma coluna por vez) */
+@media (max-width: 640px) {
+  .kanban-tabs { display: flex; }
+  .kanban-board { display: block; }
+  .kanban-column { max-height: none; }
+  .kanban-column[data-active="false"] { display: none; }
+}
+
+/* ============================================================
+   Mapa Leaflet — tema CLARO estilo Waze (.map-waze)
+   ============================================================ */
+.map-container.map-waze {
+  background: #e7edf2;
+  box-shadow: none;
+}
+
+/* Etiqueta de veículo legível sobre tiles claros */
+.map-waze .vehicle-label {
+  font-family: 'Nunito', var(--font-sans);
+  font-weight: 800;
+  color: #fff;
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+}
+
+/* Botões de zoom do Leaflet → flutuantes/arredondados estilo Waze (canto sup. direito) */
+.map-waze .leaflet-control-zoom {
+  border: none !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4) !important;
+  margin: 12px 12px 0 0 !important;
+}
+.map-waze .leaflet-control-zoom a {
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+.map-waze .leaflet-control-zoom a:last-child { border-bottom: none; }
+.map-waze .leaflet-control-zoom a:hover { background: #fff; color: #1a73e8; }
+
+/* Atribuição discreta (caso reative) */
+.map-waze .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+}
+
+/* Overlay de geolocalização da loja (inferior esquerdo) */
+.map-loc-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  padding: 7px 10px 7px 12px;
+  box-shadow: 0 8px 22px -8px rgba(15, 23, 42, 0.45);
+  font-family: 'Nunito', var(--font-sans);
+}
+.map-loc-coords {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1f3b57;
+}
+.map-loc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
+}
+.map-loc-warn {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #c2410c;
+}
+.map-loc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #042b33;
+  background: linear-gradient(180deg, #25d8ec, #14b8d4);
+  box-shadow: 0 6px 14px -5px rgba(20, 184, 212, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.map-loc-btn:hover {
+  box-shadow: 0 8px 18px -5px rgba(20, 184, 212, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.map-loc-btn:active { transform: translateY(1px) scale(0.99); }
+
+/* Botão flutuante "recentralizar na localização atual" (inferior direito) */
+.map-recenter-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.4);
+  transition: transform 0.08s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.map-recenter-btn:hover {
+  color: #1a73e8;
+  box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.5);
+}
+.map-recenter-btn:active { transform: scale(0.94); }
+
+/* Marcador "você está aqui" (GPS) — ponto azul com pulso de precisão */
+.map-here {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.35), 0 2px 6px rgba(15, 23, 42, 0.45);
+}
+.map-here::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(26, 115, 232, 0.5);
+  animation: here-pulse 1.8s ease-out infinite;
+}
+@keyframes here-pulse {
+  0% { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║ TEMA CLARO — endurecimento (Sleek Enterprise / Modelo 1)             ║
+   ║ Sobrescreve as superfícies que ASSUMIAM fundo escuro (brancos com    ║
+   ║ alpha viram invisíveis no claro; fundos pretos viram ilhas escuras). ║
+   ╚══════════════════════════════════════════════════════════════════════╝ */
+
+/* Cards (KPIs, comandas, etc.): o .bento-item usava branco translúcido. */
+.bento-item {
+  background: var(--bg-card);
+  border-color: var(--border-thin);
+  box-shadow: var(--shadow-sm);
+}
+.bento-item:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 10px 26px -14px rgba(16, 185, 129, 0.45);
+}
+
+/* Botões neutros: branco com borda fina (Limpar Dados / Sair da referência).
+   IMPORTANTE: excluir as variantes coloridas — senão este override (que vem
+   DEPOIS no arquivo) clobberia o gradiente verde do .btn-primary etc. */
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary) {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+.btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary):hover {
+  background: #f5f7fb;
+  border-color: #cbd5e1;
+}
+.form-input:hover, .form-select:hover { border-color: #cbd5e1; }
+
+/* Kanban: coluna e contadores. */
+.kanban-column { background: #f7f9fc; }
+.kanban-col-count { background: rgba(15, 23, 42, 0.06); }
+.kanban-col-body { scrollbar-color: rgba(15, 23, 42, 0.18) transparent; }
+.kanban-col-body::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.18); }
+.kanban-col-body::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.3); }
+.kanban-card-valor { color: var(--text-primary); }
+.kanban-detalhe-close:hover { background: rgba(15, 23, 42, 0.05); }
+
+/* Botões de ação da comanda (pedido novo): Aceitar VERDE, recusar VERMELHO. */
+.kanban-btn-rose { background: var(--color-rose); color: #ffffff; }
+
+/* Bordas divisórias que eram brancas translúcidas (sumiam no claro). */
+.panel-header,
+.centro-ops-resumo-row { border-color: rgba(15, 23, 42, 0.08); }
+.node-stats { border-top-color: rgba(15, 23, 42, 0.08); }
+
+/* Superfícies de topologia/monitoramento que eram pretas. */
+.topology-container { background: rgba(15, 23, 42, 0.03); }
+.topology-node { background: #ffffff; box-shadow: var(--shadow-sm); }
+
+/* Console do operador (POD/telemetria): vira cartão claro — MAS o simulador de
+   celular dentro (phone-bezel/screen) continua escuro de propósito (é um device). */
+.operator-control-panel {
+  background-color: var(--bg-card);
+  border-color: var(--border-thin);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Centro de Operações = painel "centro de comando" ESCURO (azul-marinho) dentro
+   do dashboard claro — restaura a cara anterior. Truque: re-escopa os tokens
+   escuros SÓ neste subtree; o painel (.glass-panel→--bg-secondary), os cards
+   (.bento-item→--bg-card) e os textos (--text-*) herdam o escuro automaticamente. */
+.centro-ops-panel {
+  --bg-secondary: #0d131f;   /* fundo do painel */
+  --bg-card: #141b27;        /* fundo dos KPIs/cards internos */
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --color-emerald: #10b981;  /* acento verde brilha no escuro */
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  border-color: rgba(16, 185, 129, 0.22);
+  box-shadow: 0 20px 50px -16px rgba(2, 6, 23, 0.55);
+}
+/* Divisórias/detalhes que ficam claros voltam a ser brancos-translúcidos no escuro. */
+.centro-ops-panel .centro-ops-resumo-row { border-color: rgba(255, 255, 255, 0.06); }
+.centro-ops-panel .centro-ops-zone { border-color: rgba(255, 255, 255, 0.14); }
+
+/* Cabeçalho ESCURO (como antes), casando com o Centro de Operações. Mesmo
+   truque: re-escopa os tokens escuros só no .app-header. */
+.app-header {
+  --bg-glass: rgba(18, 24, 36, 0.82);
+  --bg-card: #141b27;
+  --bg-secondary: #0d131f;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 14px 34px -16px rgba(2, 6, 23, 0.5);
+}
+/* Hover dos botões neutros do header volta ao estilo escuro (o global é claro). */
+.app-header .btn:not(.btn-primary):not(.btn-danger):not(.btn-success):not(.btn-secondary):hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: #2b3850;
+}
+
+/* Cards do Kanban em azul-marinho escuro (igual ao dashboard). Re-escopa os
+   tokens só no .kanban-card; o .bento-item herda o fundo escuro e os textos
+   (cliente/itens/valor via --text-*) ficam claros. As colunas seguem claras. */
+.kanban-card {
+  --bg-card: #141b27;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+}
+
+/* Modais do Kanban ("Conferir comanda" / despacho) também escuros. */
+.kanban-modal {
+  --bg-card: #141b27;
+  --bg-secondary: #0d131f;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+}
+/* Hover do "fechar" volta a branco-translúcido no escuro (o global é claro). */
+.kanban-modal .kanban-detalhe-close:hover { background: rgba(255, 255, 255, 0.06); }

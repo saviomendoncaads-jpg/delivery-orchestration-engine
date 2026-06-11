@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop, 'feat/**' ]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — typecheck + testes
+    # Stack usa msnodesqlv8 (binding nativo Windows) + SQL Server Express.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - name: Type-check
+        run: npm run typecheck
+      - name: Testes (vitest)
+        run: npm test
+
+  frontend:
+    name: Frontend — bundle de produção
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - name: Bundle (Vite)
+        run: npx vite build
+      # Type-check estrito é débito conhecido do monólito App.tsx (variáveis WIP
+      # não usadas). Surfaceia o problema sem bloquear o pipeline.
+      - name: Type-check estrito (não-bloqueante)
+        run: npx tsc -b
+        continue-on-error: true

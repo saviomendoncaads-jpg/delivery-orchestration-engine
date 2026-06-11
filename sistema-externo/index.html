@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador ERP Externo — DISTRE</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --panel: #111726;
+      --panel-2: #1a2235;
+      --border: #1f2a44;
+      --text: #e6edf7;
+      --text-dim: #8a93a6;
+      --cyan: #00f2fe;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(ellipse at top, #131a2e 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.4rem; margin: 0; color: var(--cyan); letter-spacing: 0.02em; }
+    h1 small { color: var(--text-dim); font-weight: 400; font-size: 0.75rem; margin-left: 8px; }
+    .badge {
+      font-size: 0.7rem; padding: 3px 10px; border-radius: 999px;
+      background: rgba(0, 242, 254, 0.1); color: var(--cyan);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+    }
+    .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    }
+    .panel h2 {
+      font-size: 0.95rem; margin: 0 0 16px;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px;
+    }
+    .panel h3 { font-size: 0.8rem; margin: 18px 0 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+    .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    .row.four { grid-template-columns: repeat(4, 1fr); }
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .field.full { grid-column: 1 / -1; }
+    label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select, textarea {
+      background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; font-size: 0.85rem; font-family: inherit;
+      outline: none; transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--cyan); }
+    textarea { resize: vertical; min-height: 60px; }
+    .mono { font-family: var(--mono); }
+    .help { font-size: 0.7rem; color: var(--text-dim); }
+
+    .produtos { display: flex; flex-direction: column; gap: 8px; }
+    .produto-row {
+      display: grid; grid-template-columns: 2.5fr 0.7fr 1fr 1fr auto; gap: 8px;
+      align-items: end;
+    }
+    .produto-row .field { margin: 0; }
+    .btn {
+      cursor: pointer; border-radius: 6px; padding: 8px 14px;
+      font-size: 0.8rem; font-weight: 600; border: 1px solid transparent;
+      transition: opacity 0.15s, transform 0.05s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--cyan); color: #001119; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-ghost { background: transparent; color: var(--text-dim); border-color: var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+    .btn-danger { background: transparent; color: var(--rose); border-color: rgba(244,63,94,0.3); padding: 6px 10px; font-size: 0.75rem; }
+    .btn-danger:hover { background: rgba(244,63,94,0.1); }
+
+    .totais {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px 14px; margin-top: 12px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    }
+    .totais div { font-size: 0.75rem; color: var(--text-dim); }
+    .totais strong { display: block; color: var(--text); font-size: 0.95rem; margin-top: 2px; font-family: var(--mono); }
+    .totais .total strong { color: var(--cyan); font-size: 1.1rem; }
+
+    .actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+    .response {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px; font-family: var(--mono); font-size: 0.78rem;
+      white-space: pre-wrap; word-break: break-word; min-height: 80px;
+      max-height: 320px; overflow: auto; color: var(--text);
+    }
+    .response.empty { color: var(--text-dim); font-style: italic; font-family: inherit; }
+    .status-line {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      font-size: 0.8rem;
+    }
+    .pill { padding: 2px 10px; border-radius: 999px; font-family: var(--mono); font-size: 0.7rem; font-weight: 600; }
+    .pill.ok { background: rgba(16,185,129,0.15); color: var(--emerald); border: 1px solid rgba(16,185,129,0.35); }
+    .pill.err { background: rgba(244,63,94,0.15); color: var(--rose); border: 1px solid rgba(244,63,94,0.35); }
+    .pill.idle { background: rgba(138,147,166,0.12); color: var(--text-dim); border: 1px solid var(--border); }
+
+    .historico { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; }
+    .hist-item {
+      padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 6px; font-size: 0.75rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .hist-item .meta { color: var(--text-dim); font-family: var(--mono); font-size: 0.7rem; }
+
+    .endpoint-radio { display: flex; gap: 8px; }
+    .endpoint-radio label {
+      flex: 1; cursor: pointer; padding: 10px; border: 1px solid var(--border);
+      border-radius: 6px; text-align: center; text-transform: none; letter-spacing: normal;
+      font-size: 0.78rem; color: var(--text-dim); transition: all 0.15s;
+    }
+    .endpoint-radio input { display: none; }
+    .endpoint-radio input:checked + .opt {
+      border-color: var(--cyan); background: rgba(0,242,254,0.08); color: var(--cyan);
+    }
+    .endpoint-radio label .opt {
+      display: block; padding: 10px; border: 1px solid var(--border); border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .endpoint-radio label .opt .t { font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 2px; color: var(--text); }
+    .endpoint-radio label .opt .d { font-size: 0.7rem; color: var(--text-dim); }
+    .endpoint-radio input:checked + .opt .t { color: var(--cyan); }
+
+    .saved-banner {
+      font-size: 0.7rem; color: var(--emerald); margin-top: 6px; opacity: 0; transition: opacity 0.2s;
+    }
+    .saved-banner.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>
+        Simulador de ERP Externo
+        <small>POST → DISTRE / API de Integração</small>
+      </h1>
+      <span class="badge">Standalone HTML</span>
+    </header>
+
+    <div class="grid">
+      <!-- COLUNA ESQUERDA: FORMULÁRIO -->
+      <form class="panel" id="form">
+        <h2>Configuração da Requisição</h2>
+        <div class="row">
+          <div class="field">
+            <label>URL do Backend</label>
+            <input type="text" id="backendUrl" class="mono" placeholder="http://localhost:5000" />
+          </div>
+          <div class="field">
+            <label>X-Loja-Id (UUID da loja)</label>
+            <input type="text" id="lojaId" class="mono" placeholder="41869dbf-4b09-4933-8bd2-11e60ccc092d" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Endpoint</label>
+          <div class="endpoint-radio">
+            <label>
+              <input type="radio" name="endpoint" value="/api/integracao/pedidos" checked />
+              <span class="opt">
+                <span class="t">/pedidos</span>
+                <span class="d">Pedido novo (passa por preparo se a loja receber pedidos)</span>
+              </span>
+            </label>
+            <label>
+              <input type="radio" name="endpoint" value="/api/integracao/entregas" />
+              <span class="opt">
+                <span class="t">/entregas</span>
+                <span class="d">Comanda já pronta — vai direto pra despacho</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <h3>Cliente</h3>
+        <div class="row three">
+          <div class="field">
+            <label>Nome *</label>
+            <input type="text" id="clienteNome" placeholder="João da Silva" required />
+          </div>
+          <div class="field">
+            <label>Telefone</label>
+            <input type="text" id="clienteTelefone" placeholder="+5511999998888" />
+          </div>
+          <div class="field">
+            <label>Documento (CPF/CNPJ)</label>
+            <input type="text" id="clienteDocumento" placeholder="123.456.789-00" />
+          </div>
+        </div>
+
+        <h3>Endereço de Entrega</h3>
+        <div class="row">
+          <div class="field">
+            <label>CEP</label>
+            <input type="text" id="endCep" placeholder="00000-000" />
+          </div>
+          <div class="field">
+            <label>UF</label>
+            <input type="text" id="endUf" placeholder="SP" maxlength="2" style="text-transform: uppercase" />
+          </div>
+        </div>
+        <div class="row" style="grid-template-columns: 3fr 1fr;">
+          <div class="field">
+            <label>Logradouro *</label>
+            <input type="text" id="endLogradouro" placeholder="Rua das Flores" required />
+          </div>
+          <div class="field">
+            <label>Número</label>
+            <input type="text" id="endNumero" placeholder="123" />
+          </div>
+        </div>
+        <div class="row three">
+          <div class="field">
+            <label>Complemento</label>
+            <input type="text" id="endComplemento" placeholder="Apto 42" />
+          </div>
+          <div class="field">
+            <label>Bairro</label>
+            <input type="text" id="endBairro" placeholder="Centro" />
+          </div>
+          <div class="field">
+            <label>Cidade</label>
+            <input type="text" id="endCidade" placeholder="São Paulo" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Referência / Observação do endereço</label>
+          <input type="text" id="endReferencia" placeholder="Próximo à padaria" />
+        </div>
+
+        <h3>Produtos</h3>
+        <div class="produtos" id="produtosLista"></div>
+        <div style="margin-top: 8px;">
+          <button type="button" class="btn btn-ghost" id="addProduto">+ Adicionar produto</button>
+        </div>
+
+        <div class="totais">
+          <div>Subtotal<strong id="subtotalDisp" class="mono">R$ 0,00</strong></div>
+          <div>
+            Taxa entrega<br />
+            <input type="number" step="0.01" min="0" id="taxaEntrega" value="0" style="width: 100%; margin-top: 2px;" />
+          </div>
+          <div>
+            Desconto<br />
+            <input type="number" step="0.01" min="0" id="desconto" value="0" style="width: 100%; margin-top: 2px;" />
+          </div>
+          <div class="total">Total<strong id="totalDisp" class="mono">R$ 0,00</strong></div>
+        </div>
+
+        <h3>Pagamento e Metadados</h3>
+        <div class="row three">
+          <div class="field">
+            <label>Forma de pagamento</label>
+            <select id="pagForma">
+              <option value="pix">PIX</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="maquininha">Maquininha (genérico)</option>
+              <option value="credito">Crédito</option>
+              <option value="debito">Débito</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Troco para (R$, se dinheiro)</label>
+            <input type="number" step="0.01" min="0" id="pagTroco" placeholder="0" />
+          </div>
+          <div class="field">
+            <label>Prioridade</label>
+            <select id="prioridade">
+              <option value="baixa">Baixa</option>
+              <option value="media" selected>Média</option>
+              <option value="alta">Alta</option>
+              <option value="critica">Crítica</option>
+            </select>
+          </div>
+        </div>
+        <div class="row three">
+          <div class="field">
+            <label>Tipo de carga</label>
+            <select id="tipoCarga">
+              <option value="normal" selected>Normal</option>
+              <option value="expressa">Expressa</option>
+              <option value="agendado">Agendado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>ID Pedido no ERP de origem</label>
+            <input type="text" id="numeroPedidoErp" placeholder="NF-2026-0001" />
+          </div>
+          <div class="field">
+            <label>Nome do ERP de origem</label>
+            <input type="text" id="origemErp" placeholder="TOTVS / Bling / Tiny..." />
+          </div>
+        </div>
+        <div class="field">
+          <label>Observação geral</label>
+          <textarea id="observacao" placeholder="Entregar após 19h"></textarea>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-ghost" id="exemploBtn">Carregar exemplo</button>
+          <button type="button" class="btn btn-ghost" id="limparBtn">Limpar tudo</button>
+          <button type="submit" class="btn btn-primary" style="margin-left: auto;">Enviar pedido →</button>
+        </div>
+        <div class="saved-banner" id="savedBanner">Configurações salvas no navegador</div>
+      </form>
+
+      <!-- COLUNA DIREITA: PREVIEW + RESPOSTA + HISTÓRICO -->
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="panel">
+          <h2>Preview do JSON</h2>
+          <div class="response mono" id="preview"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Resposta da API</h2>
+          <div class="status-line">
+            <span class="pill idle" id="statusPill">aguardando</span>
+            <span id="statusMeta" style="color: var(--text-dim); font-family: var(--mono); font-size: 0.75rem;"></span>
+          </div>
+          <div class="response empty" id="resposta">— ainda não enviado —</div>
+        </div>
+
+        <div class="panel">
+          <h2>Histórico desta sessão</h2>
+          <div class="historico" id="historico">
+            <div style="color: var(--text-dim); font-size: 0.75rem; font-style: italic;">Nenhum pedido enviado ainda.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // PERSISTÊNCIA SIMPLES NO LOCALSTORAGE
+    // ============================================================
+    const STORAGE_KEY = 'distre_simulador_v1';
+    const inputsParaSalvar = [
+      'backendUrl', 'lojaId',
+      'clienteNome', 'clienteTelefone', 'clienteDocumento',
+      'endCep', 'endUf', 'endLogradouro', 'endNumero', 'endComplemento',
+      'endBairro', 'endCidade', 'endReferencia',
+      'taxaEntrega', 'desconto', 'pagForma', 'pagTroco',
+      'prioridade', 'tipoCarga', 'numeroPedidoErp', 'origemErp', 'observacao'
+    ];
+    function carregarConfig() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          document.getElementById('backendUrl').value = 'http://localhost:5000';
+          return;
+        }
+        const saved = JSON.parse(raw);
+        for (const id of inputsParaSalvar) {
+          if (saved[id] !== undefined && document.getElementById(id)) {
+            document.getElementById(id).value = saved[id];
+          }
+        }
+        if (saved.endpoint) {
+          const ep = document.querySelector(`input[name="endpoint"][value="${saved.endpoint}"]`);
+          if (ep) ep.checked = true;
+        }
+        if (Array.isArray(saved.produtos) && saved.produtos.length) {
+          document.getElementById('produtosLista').innerHTML = '';
+          saved.produtos.forEach(p => addProdutoRow(p));
+        }
+      } catch (e) {}
+    }
+    function salvarConfig() {
+      const obj = {};
+      for (const id of inputsParaSalvar) {
+        const el = document.getElementById(id);
+        if (el) obj[id] = el.value;
+      }
+      obj.endpoint = document.querySelector('input[name="endpoint"]:checked').value;
+      obj.produtos = coletarProdutos();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+      const banner = document.getElementById('savedBanner');
+      banner.classList.add('show');
+      clearTimeout(window._savedT);
+      window._savedT = setTimeout(() => banner.classList.remove('show'), 1500);
+    }
+
+    // ============================================================
+    // PRODUTOS DINÂMICOS
+    // ============================================================
+    function addProdutoRow(preset) {
+      const lista = document.getElementById('produtosLista');
+      const row = document.createElement('div');
+      row.className = 'produto-row';
+      row.innerHTML = `
+        <div class="field"><label>Nome do produto</label><input type="text" class="p-nome" placeholder="Ex: Refrigerante 350ml" /></div>
+        <div class="field"><label>Qtd</label><input type="number" class="p-qtd" min="1" step="1" value="1" /></div>
+        <div class="field"><label>Preço unit. (R$)</label><input type="number" class="p-preco" min="0" step="0.01" value="0" /></div>
+        <div class="field"><label>Obs</label><input type="text" class="p-obs" placeholder="opcional" /></div>
+        <button type="button" class="btn btn-danger remover">remover</button>
+      `;
+      if (preset) {
+        row.querySelector('.p-nome').value = preset.nome || '';
+        row.querySelector('.p-qtd').value = preset.quantidade || 1;
+        row.querySelector('.p-preco').value = preset.precoUnitario || 0;
+        row.querySelector('.p-obs').value = preset.observacao || '';
+      }
+      row.querySelector('.remover').onclick = () => { row.remove(); atualizarPreview(); salvarConfig(); };
+      row.querySelectorAll('input').forEach(i => i.addEventListener('input', () => { atualizarPreview(); salvarConfig(); }));
+      lista.appendChild(row);
+    }
+    function coletarProdutos() {
+      const rows = document.querySelectorAll('.produto-row');
+      const produtos = [];
+      rows.forEach(r => {
+        const nome = r.querySelector('.p-nome').value.trim();
+        const quantidade = Number(r.querySelector('.p-qtd').value);
+        const precoUnitario = Number(r.querySelector('.p-preco').value);
+        const obs = r.querySelector('.p-obs').value.trim();
+        if (!nome) return;
+        const p = { nome, quantidade, precoUnitario };
+        if (obs) p.observacao = obs;
+        produtos.push(p);
+      });
+      return produtos;
+    }
+
+    // ============================================================
+    // MONTAGEM DO PAYLOAD
+    // ============================================================
+    function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+    function num(id) { return Number(val(id) || 0); }
+
+    function montarPayload() {
+      const produtos = coletarProdutos();
+      const subtotal = produtos.reduce((acc, p) => acc + (Number(p.precoUnitario) || 0) * Number(p.quantidade), 0);
+      const taxaEntrega = num('taxaEntrega');
+      const desconto = num('desconto');
+      const total = subtotal + taxaEntrega - desconto;
+
+      const cliente = { nome: val('clienteNome') };
+      if (val('clienteTelefone')) cliente.telefone = val('clienteTelefone');
+      if (val('clienteDocumento')) cliente.documento = val('clienteDocumento');
+
+      const endereco = { logradouro: val('endLogradouro') };
+      if (val('endNumero')) endereco.numero = val('endNumero');
+      if (val('endComplemento')) endereco.complemento = val('endComplemento');
+      if (val('endBairro')) endereco.bairro = val('endBairro');
+      if (val('endCidade')) endereco.cidade = val('endCidade');
+      if (val('endUf')) endereco.uf = val('endUf');
+      if (val('endCep')) endereco.cep = val('endCep');
+      if (val('endReferencia')) endereco.referencia = val('endReferencia');
+
+      const pagamento = { forma: val('pagForma') };
+      const troco = num('pagTroco');
+      if (troco > 0) pagamento.troco = troco;
+
+      const payload = {
+        cliente,
+        produtos,
+        valores: { subtotal: round2(subtotal), taxaEntrega: round2(taxaEntrega), desconto: round2(desconto), total: round2(total) },
+        endereco,
+        pagamento,
+        prioridade: val('prioridade'),
+        tipoCarga: val('tipoCarga')
+      };
+      if (val('observacao')) payload.observacao = val('observacao');
+      if (val('numeroPedidoErp')) payload.numeroPedidoErp = val('numeroPedidoErp');
+      if (val('origemErp')) payload.origemErp = val('origemErp');
+      const idExt = val('numeroPedidoErp') || ('SIM-' + Date.now());
+      payload.idPedidoExterno = idExt;
+      return payload;
+    }
+    function round2(n) { return Math.round(n * 100) / 100; }
+
+    function atualizarPreview() {
+      const payload = montarPayload();
+      document.getElementById('preview').textContent = JSON.stringify(payload, null, 2);
+      const subtotal = payload.valores.subtotal;
+      const total = payload.valores.total;
+      document.getElementById('subtotalDisp').textContent = formatBRL(subtotal);
+      document.getElementById('totalDisp').textContent = formatBRL(total);
+    }
+    function formatBRL(n) { return 'R$ ' + n.toFixed(2).replace('.', ','); }
+
+    // ============================================================
+    // ENVIO
+    // ============================================================
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const backendUrl = val('backendUrl').replace(/\/$/, '');
+      const lojaId = val('lojaId');
+      const endpoint = document.querySelector('input[name="endpoint"]:checked').value;
+      if (!backendUrl) { alert('Informe a URL do backend.'); return; }
+      if (!lojaId) { alert('Informe o X-Loja-Id.'); return; }
+      const payload = montarPayload();
+      if (!payload.cliente.nome) { alert('Nome do cliente é obrigatório.'); return; }
+      if (!payload.produtos.length) { alert('Adicione pelo menos 1 produto.'); return; }
+      if (!payload.endereco.logradouro) { alert('Logradouro do endereço é obrigatório.'); return; }
+
+      const url = `${backendUrl}${endpoint}`;
+      const pill = document.getElementById('statusPill');
+      const meta = document.getElementById('statusMeta');
+      const resp = document.getElementById('resposta');
+      pill.className = 'pill idle'; pill.textContent = 'enviando...';
+      meta.textContent = `POST ${url}`;
+      resp.classList.remove('empty');
+      resp.textContent = '...';
+
+      const t0 = performance.now();
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Loja-Id': lojaId },
+          body: JSON.stringify(payload)
+        });
+        const dt = Math.round(performance.now() - t0);
+        const ct = r.headers.get('content-type') || '';
+        let body;
+        if (ct.includes('application/json')) {
+          body = await r.json();
+          resp.textContent = JSON.stringify(body, null, 2);
+        } else {
+          body = await r.text();
+          resp.textContent = body;
+        }
+        pill.className = 'pill ' + (r.ok ? 'ok' : 'err');
+        pill.textContent = `HTTP ${r.status}`;
+        meta.textContent = `POST ${url} • ${dt}ms`;
+        adicionarHistorico({
+          ts: new Date().toLocaleTimeString('pt-BR'),
+          endpoint,
+          status: r.status,
+          ok: r.ok,
+          id: body && (body.pedidoId || body.entregaId) || null,
+          cliente: payload.cliente.nome,
+          total: payload.valores.total
+        });
+      } catch (err) {
+        pill.className = 'pill err'; pill.textContent = 'falhou';
+        meta.textContent = `POST ${url}`;
+        resp.textContent = 'Erro de rede: ' + err.message + '\n\nVerifique se o backend está rodando e se o CORS permite esta origem.';
+        adicionarHistorico({
+          ts: new Date().toLocaleTimeString('pt-BR'),
+          endpoint, status: 0, ok: false, id: null,
+          cliente: payload.cliente.nome, total: payload.valores.total, erro: err.message
+        });
+      }
+    });
+
+    function adicionarHistorico(item) {
+      const cont = document.getElementById('historico');
+      if (cont.querySelector('div[style*="italic"]')) cont.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'hist-item';
+      const left = `<div><strong>${item.cliente}</strong> · ${formatBRL(item.total)}<div class="meta">${item.endpoint.replace('/api/integracao', '')} ${item.id ? '· ' + item.id : ''}</div></div>`;
+      const right = `<span class="pill ${item.ok ? 'ok' : 'err'}">${item.status || 'falha'}</span>`;
+      div.innerHTML = `${left}${right}`;
+      cont.insertBefore(div, cont.firstChild);
+    }
+
+    // ============================================================
+    // BOTÕES AUXILIARES
+    // ============================================================
+    document.getElementById('addProduto').onclick = () => { addProdutoRow(); atualizarPreview(); salvarConfig(); };
+    document.getElementById('limparBtn').onclick = () => {
+      if (!confirm('Limpar todos os campos do formulário?')) return;
+      inputsParaSalvar.forEach(id => { const el = document.getElementById(id); if (el && id !== 'backendUrl' && id !== 'lojaId') el.value = ''; });
+      document.getElementById('produtosLista').innerHTML = '';
+      addProdutoRow();
+      atualizarPreview(); salvarConfig();
+    };
+    document.getElementById('exemploBtn').onclick = () => {
+      document.getElementById('clienteNome').value = 'Maria Souza';
+      document.getElementById('clienteTelefone').value = '+5511988887777';
+      document.getElementById('clienteDocumento').value = '987.654.321-00';
+      document.getElementById('endCep').value = '01310-200';
+      document.getElementById('endUf').value = 'SP';
+      document.getElementById('endLogradouro').value = 'Av. Paulista';
+      document.getElementById('endNumero').value = '1578';
+      document.getElementById('endComplemento').value = 'Sala 1203';
+      document.getElementById('endBairro').value = 'Bela Vista';
+      document.getElementById('endCidade').value = 'São Paulo';
+      document.getElementById('endReferencia').value = 'Edifício comercial';
+      document.getElementById('taxaEntrega').value = '8.50';
+      document.getElementById('desconto').value = '0';
+      document.getElementById('pagForma').value = 'pix';
+      document.getElementById('prioridade').value = 'media';
+      document.getElementById('tipoCarga').value = 'normal';
+      document.getElementById('numeroPedidoErp').value = 'NF-' + Date.now();
+      document.getElementById('origemErp').value = 'Simulador';
+      document.getElementById('observacao').value = 'Pedido de teste do simulador externo';
+      document.getElementById('produtosLista').innerHTML = '';
+      addProdutoRow({ nome: 'X-Burguer', quantidade: 2, precoUnitario: 25.00 });
+      addProdutoRow({ nome: 'Refrigerante 350ml', quantidade: 2, precoUnitario: 7.00, observacao: 'Gelado' });
+      atualizarPreview(); salvarConfig();
+    };
+
+    // Persistência ao digitar / mudar qualquer campo
+    document.addEventListener('input', () => { atualizarPreview(); salvarConfig(); });
+    document.addEventListener('change', () => { atualizarPreview(); salvarConfig(); });
+
+    // Bootstrap
+    carregarConfig();
+    if (document.querySelectorAll('.produto-row').length === 0) addProdutoRow();
+    atualizarPreview();
+  </script>
+</body>
+</html>

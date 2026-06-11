@@ -1,3 +1,31 @@
+/* ──────────────────────────────────────────────────────────────
+   Tailwind CSS v4 — imported WITHOUT Preflight on purpose.
+   This project already ships ~2.6k lines of hand-written CSS
+   (App.css). Tailwind's Preflight is a global reset that would
+   restyle that existing UI, so we opt out of it and load only the
+   theme tokens + utilities. The shadcn component classes still work.
+   To enable the full reset later, replace the three lines below with
+   a single `@import "tailwindcss";`.
+   ────────────────────────────────────────────────────────────── */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Design tokens consumed by shadcn-style components/utilities. */
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-muted-foreground: #6b7280;
+}
+
+:root {
+  /* Used directly by BGPattern mask gradients (var(--background)).
+     Only the alpha matters for masking; keep it opaque. */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --muted-foreground: #6b7280;
+}
+
 /* Reset styles to ensure the application utilizes the entire screen area */
 html, body, #root {
   margin: 0;
