@@ -3360,20 +3360,23 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* Centro de Operações em AZUL-CIANO (e não no verde do resto do painel).
-   Truque: remapeia --color-emerald SÓ neste subtree — como os acentos do painel
-   (SLA, donut, Faturamento, dot/texto "Ao vivo") usam var(--color-emerald)
-   inline, todos viram ciano de uma vez. O resto do dashboard segue verde. */
+/* Centro de Operações = painel "centro de comando" ESCURO (azul-marinho) dentro
+   do dashboard claro — restaura a cara anterior. Truque: re-escopa os tokens
+   escuros SÓ neste subtree; o painel (.glass-panel→--bg-secondary), os cards
+   (.bento-item→--bg-card) e os textos (--text-*) herdam o escuro automaticamente. */
 .centro-ops-panel {
-  --color-emerald: #06b6d4;
-  border-color: rgba(6, 182, 212, 0.3);
+  --bg-secondary: #0d131f;   /* fundo do painel */
+  --bg-card: #141b27;        /* fundo dos KPIs/cards internos */
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --color-emerald: #10b981;  /* acento verde brilha no escuro */
+  --surface-hover: rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  border-color: rgba(16, 185, 129, 0.22);
+  box-shadow: 0 20px 50px -16px rgba(2, 6, 23, 0.55);
 }
-/* Halo pulsante do "Ao vivo" em ciano (o keyframe global usava verde fixo). */
-.centro-ops-panel .centro-ops-live-dot {
-  animation: centro-ops-pulse-cyan 1.8s ease-out infinite;
-}
-@keyframes centro-ops-pulse-cyan {
-  0%   { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.55); }
-  70%  { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
-}
+/* Divisórias/detalhes que ficam claros voltam a ser brancos-translúcidos no escuro. */
+.centro-ops-panel .centro-ops-resumo-row { border-color: rgba(255, 255, 255, 0.06); }
+.centro-ops-panel .centro-ops-zone { border-color: rgba(255, 255, 255, 0.14); }
