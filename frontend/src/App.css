@@ -3411,3 +3411,16 @@ body {
   --text-muted: #6b7488;
   --surface-hover: rgba(255, 255, 255, 0.04);
 }
+
+/* Modais do Kanban ("Conferir comanda" / despacho) também escuros. */
+.kanban-modal {
+  --bg-card: #141b27;
+  --bg-secondary: #0d131f;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+}
+/* Hover do "fechar" volta a branco-translúcido no escuro (o global é claro). */
+.kanban-modal .kanban-detalhe-close:hover { background: rgba(255, 255, 255, 0.06); }
