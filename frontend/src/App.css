@@ -3399,3 +3399,15 @@ body {
   background: rgba(255, 255, 255, 0.09);
   border-color: #2b3850;
 }
+
+/* Cards do Kanban em azul-marinho escuro (igual ao dashboard). Re-escopa os
+   tokens só no .kanban-card; o .bento-item herda o fundo escuro e os textos
+   (cliente/itens/valor via --text-*) ficam claros. As colunas seguem claras. */
+.kanban-card {
+  --bg-card: #141b27;
+  --border-thin: #1f293d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7488;
+  --surface-hover: rgba(255, 255, 255, 0.04);
+}
