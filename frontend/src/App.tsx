@@ -4779,9 +4779,12 @@ export default function App() {
             <span className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}></span>
             <span>{isConnected ? 'Servidor Conectado' : 'Desconectado'}</span>
           </div>
-          <div className="status-badge" style={{ color: 'var(--color-cyan)' }}>
-            <strong>{activeDeliveries.length}</strong> Entregas Ativas
-          </div>
+          {/* "Entregas Ativas" ocultado a pedido (jun/2026) */}
+          {false && (
+            <div className="status-badge" style={{ color: 'var(--color-cyan)' }}>
+              <strong>{activeDeliveries.length}</strong> Entregas Ativas
+            </div>
+          )}
           {alertDeliveries.length > 0 && (
             <div className="status-badge" style={{ color: 'var(--color-rose)' }}>
               <strong>{alertDeliveries.length}</strong> Alertas Ativos
@@ -4791,8 +4794,13 @@ export default function App() {
         <div className="header-actions">
           {/* Hierarquia: 1 primária (Gerar Pedido), 1 secundária (Entrega Rápida),
               destrutivo e logout rebaixados a ghost p/ não competir nem causar clique acidental. */}
-          <button className="btn btn-primary" onClick={triggerQuickOrder}>+ Gerar Pedido</button>
-          <button className="btn btn-secondary" onClick={triggerQuickDelivery}>Entrega Rápida</button>
+          {/* "Gerar Pedido" e "Entrega Rápida" ocultados a pedido (jun/2026) */}
+          {false && (
+            <>
+              <button className="btn btn-primary" onClick={triggerQuickOrder}>+ Gerar Pedido</button>
+              <button className="btn btn-secondary" onClick={triggerQuickDelivery}>Entrega Rápida</button>
+            </>
+          )}
           <button
             className="btn"
             style={{ background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-thin)' }}
